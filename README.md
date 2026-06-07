@@ -10,6 +10,66 @@ This gives independently written mixins a cooperative protocol to define method 
 every ancestor's behavior takes effect once and only once, in a consistent order.
 Inconsistent inheritance graphs are rejected at compile time.
 
+## Quick Example: A Diamond
+
+```cpp
+#include <c4/mixins.hpp>
+#include <iostream>
+
+template<class Self, class Super>
+struct Object : Super {
+  using c4_parents = c4::parents<>;
+
+  void save() { std::cout << "Object::save\n"; }
+};
+
+template<class Self, class Super>
+struct Timestamped : Super {
+  using c4_parents = c4::parents<Object>;
+
+  void save() { std::cout << "Timestamped::save\n"; Super::save(); }
+};
+
+template<class Self, class Super>
+struct Audited : Super {
+  using c4_parents = c4::parents<Object>;
+
+  void save() { std::cout << "Audited::save\n"; Super::save(); }
+};
+
+template<class Self, class Super>
+struct Document : Super {
+  using c4_parents = c4::parents<Timestamped, Audited>;
+
+  void save() { std::cout << "Document::save\n"; Super::save(); }
+};
+
+using MyDocument = c4::compose<Document>;
+
+int main() {
+  MyDocument doc;
+  doc.save();
+}
+```
+
+Output:
+
+```text
+Document::save
+Timestamped::save
+Audited::save
+Object::save
+```
+
+The computed class precedence list (driving the chain of methods) is:
+
+```text
+Document → Timestamped → Audited → Object
+```
+
+Although both `Timestamped` and `Audited` extend `Object`, `Object::save()` appears once and only once.
+Each mixin cooperates by calling `Super::save()`.
+
 ## Why C4?
 
 This project implements **Optimal Inheritance** using C++ template metaprogramming, based on:
@@ -37,7 +97,7 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
    to e.g. handle locking or memory allocation for you without risking deadlocks or use-after-free.
 
 3. **Performance of Single Inheritance**:
-   Classes that declare "static constexpr bool c4_suffix = true;" are *suffix classes*,
+   Classes that declare `static constexpr bool c4_suffix = true;` are *suffix classes*,
    whose class precedence list is guaranteed to be the suffix of that of any descendent,
    enabling all the usual optimizations associated with single inheritance:
    fixed-offset fields, fixed-offset dynamic method dispatch, etc.
@@ -81,87 +141,6 @@ g++ -std=c++20 -Iinclude tests/test_c4_suffix.cpp      -o build/test_c4_suffix  
 g++ -std=c++20 -Iinclude tests/test_error_detection.cpp -o build/test_error_detection && build/test_error_detection
 ```
 
-## Example Usage
-
-`collectNames` is not part of the core library — it lives in `examples/mixin_names.hpp`,
-which provides `MixinNames` (a base with the `collectNames` protocol) and `C4N<Spec>`
-(shorthand for `C4<Spec, MixinNames>`).
-
-```cpp
-#include "mixin_names.hpp"   // provides MixinNames, C4N
-using namespace c4;
-using c4::examples::C4N;
-
-// Base spec - no parents
-template <typename Self, typename Super>
-struct O : public Super {
-    using c4_parents = TypeList<>;
-    static constexpr bool c4_suffix = false;
-    void collectNames(std::vector<std::string>& names) const {
-        names.push_back("O"); Super::collectNames(names);
-    }
-};
-
-// A and B each inherit from O
-template <typename Self, typename Super>
-struct A : public Super {
-    using c4_parents = TypeList<SpecList<O>>;
-    static constexpr bool c4_suffix = false;
-    void collectNames(std::vector<std::string>& names) const {
-        names.push_back("A"); Super::collectNames(names);
-    }
-};
-
-template <typename Self, typename Super>
-struct B : public Super {
-    using c4_parents = TypeList<SpecList<O>>;
-    static constexpr bool c4_suffix = false;
-    void collectNames(std::vector<std::string>& names) const {
-        names.push_back("B"); Super::collectNames(names);
-    }
-};
-
-// Diamond inherits from both A and B
-template <typename Self, typename Super>
-struct Diamond : public Super {
-    using c4_parents = TypeList<SpecList<A, B>>;
-    static constexpr bool c4_suffix = false;
-    void collectNames(std::vector<std::string>& names) const {
-        names.push_back("Diamond"); Super::collectNames(names);
-    }
-};
-
-// Compose Diamond; CPL computed at compile time: [Diamond, A, B, O]
-using Diamond_Class = C4N<Diamond>;
-
-// Compile-time CPL membership checks (no collectNames needed)
-static_assert(IsInCPL_v<Diamond, A>);
-static_assert(IsInCPL_v<Diamond, B>);
-static_assert(IsInCPL_v<Diamond, O>);
-
-int main() {
-    Diamond_Class d;
-    std::vector<std::string> names;
-    d.collectNames(names);
-    // names == {"Diamond", "A", "B", "O"}
-    // O appears once despite being a shared ancestor — C4 handles it.
-}
-```
-
-“Suffix property”: suffix specs (marked `static constexpr bool c4_suffix = true`)
-are guaranteed to have their class precedence list as the suffix of
-any descendent’s class precedence list, enabling fixed-offset field access.
-Suffix specs in a given class’s ancestry are always in a total order,
-though some infix (i.e. not-suffix) classes in between them might not.
-
-Suffix specs correspond to the notion of “class” in Scala or Ruby, that are in a mutual
-single-inheritance structure, as contrasted with infix (non-suffix) specs, that correspond
-to the notion of “trait” in Scala, or “module” in Ruby, that are in mutual multiple-inheritance
-structure. See also “struct” in Lisp (that have single inheritance) vs “class” in Lisp (that can
-have multiple inheritance) and “mixin” (which is an abstract class designed for use in a multiple
-inheritance context, except the word “mixin” pre-dates the words “abstract class”).
-
-
 ## Examples
 
 All runnable examples live in `examples/` and build with:
@@ -176,19 +155,36 @@ g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
 | `examples/diamond.cpp` | Basic diamond inheritance; canonical C4 usage with `C4N<>` |
 | `examples/interface.cpp` | Shows how to inherit from an interface or abstract class |
 | `examples/suffix.cpp` | Suffix specs (`c4_suffix = true`), fixed-tail CPL placement |
-| `examples/multiple_parent_lists.cpp` | Multiple independent parent lists: `TypeList<SpecList<A,B>, SpecList<C>>` |
+| `examples/multiple_parent_lists.cpp` | Multiple independent parent lists: `c4::parents<c4::order<A,B>, c4::order<C>>` |
 | `examples/mixin_names.hpp` | `MixinNames` base and `C4N<Spec>` alias — used by examples and tests that need `collectNames` |
 | `examples/counting.hpp` | `Counting` mixin tracking nodes/edges visited; illustrates stateful mixins |
+
+## Suffix Classes
+
+“Suffix property”: suffix specs, marked `static constexpr bool c4_suffix = true;`
+are guaranteed to have their class precedence list as the suffix of
+any descendent’s class precedence list, enabling fixed-offset field access.
+Suffix specs in a given class’s ancestry are always in a total order,
+though some infix (i.e. not-suffix) classes in between them might not.
+
+Suffix specs correspond to the notion of “class” in Scala or Ruby, that are in a mutual
+single-inheritance structure, as contrasted with infix (non-suffix) specs, that correspond
+to the notion of “trait” in Scala, or “module” in Ruby, that are in mutual multiple-inheritance
+structure. See also “struct” in Lisp (that have single inheritance) vs “class” in Lisp (that can
+have multiple inheritance) and “mixin” (which is an abstract class designed for use in a multiple
+inheritance context, except the word “mixin” pre-dates the words “abstract class”).
+
+See examples in `examples/suffix.cpp`.
 
 ## Architecture
 
 ```
 include/c4/
-├── mixins.hpp            # Main header (include this)
+├── mixins.hpp        # Main header (include this)
 ├── type_list.hpp     # Compile-time list operations
 ├── type_map.hpp      # Compile-time associative map (ancestor counting)
 ├── dag.hpp           # Cycle detection
-└── linearize.hpp  # C4 algorithm (included by mixins.hpp)
+└── linearize.hpp     # C4 algorithm (included by mixins.hpp)
 ```
 
 ### Type-Level Infrastructure
@@ -214,7 +210,7 @@ struct SpecHelper { /* ... */ };
 
 C4 extends C3 with support for **suffix specifications**. It enforces six constraints:
 
-1. **Linearization**: Total order extending the DAG partial order
+1. **Linearization**: Total order extending the partial order of the inheritance DAG
 2. **Local Precedence**: Parent order in definitions preserved in precedence list
 3. **Monotonicity**: Parent's precedence list is subsequence of child's
 4. **Shape Determinism**: Isomorphic DAGs yield isomorphic precedence lists
