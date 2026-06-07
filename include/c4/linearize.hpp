@@ -343,7 +343,7 @@ struct linearize {
 
 private:
     using parent_orders = remove_nulls_t<typename Traits::template parent_orders<Node>>;
-    using parents = unique_direct_parents_t<parent_orders>;
+    using parents = concat_unique_all_t<parent_orders>;
     using parent_plists = parent_precedence_lists_t<parents, Traits>;
     using candidates = concat_t<parent_plists, parent_orders>;
 

@@ -71,7 +71,7 @@ struct Service : Super {
   }
 };
 
-using MyService = c4::instantiate<c4_examples::Service>;
+using MyService = c4::instantiate<Service>;
 
 int main() {
   MyService service;

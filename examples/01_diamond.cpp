@@ -36,7 +36,7 @@ struct Document : Super {
   void save() { std::cout << "Document::save\n"; Super::save(); }
 };
 
-using MyDocument = c4::instantiate<c4_examples::Document>;
+using MyDocument = c4::instantiate<Document>;
 
 int main() {
   MyDocument doc;

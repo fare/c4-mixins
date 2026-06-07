@@ -45,7 +45,7 @@ struct Example : Super {
   void step() { std::cout << "Example\n"; Super::step(); }
 };
 
-using MyExample = c4::instantiate<c4_examples::Example>;
+using MyExample = c4::instantiate<Example>;
 
 int main() {
   MyExample example;

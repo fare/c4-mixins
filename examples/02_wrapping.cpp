@@ -49,7 +49,7 @@ struct Client : Super {
   }
 };
 
-using MyClient = c4::instantiate<c4_examples::Client>;
+using MyClient = c4::instantiate<Client>;
 
 int main() {
   MyClient client;

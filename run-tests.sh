@@ -22,7 +22,6 @@ for src in tests/test_*.cpp; do
   echo "  $name"
   "$CXX" $CXXFLAGS "$src" -o "$exe"
   "$exe"
-  echo ; echo ; echo
 done
 
 echo
@@ -33,7 +32,6 @@ for src in examples/[0-9][0-9]_*.cpp; do
 
   echo "  $name"
   "$CXX" $CXXFLAGS "$src" -o "$exe"
-  echo ; echo ; echo
 done
 
 echo

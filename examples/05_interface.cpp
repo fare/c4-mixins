@@ -46,20 +46,20 @@ struct Node : Super {
   int value = 0;
 };
 
-using MyNode = c4::instantiate<c4_examples::Node>;
+using MyNode = c4::instantiate<Node>;
 
-static_assert(std::is_base_of_v<c4_examples::Cloneable<MyNode>, MyNode>);
-static_assert(std::is_base_of_v<c4_examples::Serializable, MyNode>);
+static_assert(std::is_base_of_v<Cloneable<MyNode>, MyNode>);
+static_assert(std::is_base_of_v<Serializable, MyNode>);
 
 int main() {
   MyNode node;
   node.value = 42;
   node.tag = "answer";
 
-  c4_examples::Serializable* serializable = &node;
+  Serializable* serializable = &node;
   std::cout << serializable->serialize() << "\n";
 
-  c4_examples::Cloneable<MyNode>* cloneable = &node;
+  Cloneable<MyNode>* cloneable = &node;
   std::unique_ptr<MyNode> copy = cloneable->clone();
   std::cout << copy->serialize() << "\n";
 }

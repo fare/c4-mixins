@@ -54,7 +54,7 @@ struct CountingGraph : Super {
   using c4_parents = c4::parents<Counting, Labeled>;
 };
 
-using MyGraph = c4::instantiate<c4_examples::CountingGraph>;
+using MyGraph = c4::instantiate<CountingGraph>;
 
 int main() {
   MyGraph graph;

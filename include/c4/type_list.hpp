@@ -198,6 +198,54 @@ public:
     using result = std::conditional_t<matches, Dst, typename next::result>;
 };
 
+// Append all elements of Items to List, skipping elements already present.
+template<typename List, typename Items>
+struct append_unique_all;
+
+template<typename List>
+struct append_unique_all<List, type_list<>> {
+    using type = List;
+};
+
+template<typename List, typename First, typename... Rest>
+struct append_unique_all<List, type_list<First, Rest...>> {
+private:
+    using with_first = std::conditional_t<
+        contains_v<List, First>,
+        List,
+        append_t<List, First>>;
+
+public:
+    using type = typename append_unique_all<with_first, type_list<Rest...>>::type;
+};
+
+template<typename List, typename Items>
+using append_unique_all_t = typename append_unique_all<List, Items>::type;
+
+// Concatenate a type_list of type_lists by one level, removing duplicates.
+//
+//   concat_unique_all_t<type_list<type_list<A, B>, type_list<B, C>>>
+//     == type_list<A, B, C>
+template<typename Lists>
+struct concat_unique_all;
+
+template<>
+struct concat_unique_all<type_list<>> {
+    using type = type_list<>;
+};
+
+template<typename First, typename... Rest>
+struct concat_unique_all<type_list<First, Rest...>> {
+private:
+    using rest = typename concat_unique_all<type_list<Rest...>>::type;
+
+public:
+    using type = append_unique_all_t<First, rest>;
+};
+
+template<typename Lists>
+using concat_unique_all_t = typename concat_unique_all<Lists>::type;
+
 // ============================================================================
 // Fold operations
 // ============================================================================
