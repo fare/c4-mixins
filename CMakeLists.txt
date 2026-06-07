@@ -37,12 +37,34 @@ if(BUILD_TESTING)
     test_counting
     test_cycle_check
     test_linearize
+    test_gerbil_vectors
   )
 
   foreach(test_name IN LISTS C4_MIXINS_TESTS)
     add_executable(${test_name} tests/${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE c4::mixins)
     add_test(NAME ${test_name} COMMAND ${test_name})
+  endforeach()
+
+  set(C4_MIXINS_FAIL_TESTS
+    fail_confused_grid
+    fail_suffix_break
+    fail_parent_order_cycle
+  )
+
+  foreach(test_name IN LISTS C4_MIXINS_FAIL_TESTS)
+    add_test(
+      NAME ${test_name}
+      COMMAND
+        ${CMAKE_CXX_COMPILER}
+        -std=c++20
+        -I${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/${test_name}.cpp
+        -o ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
+
+    set_tests_properties(${test_name}
+      PROPERTIES
+        WILL_FAIL TRUE)
   endforeach()
 endif()
 

@@ -130,10 +130,8 @@ struct instantiate_chain<Self, Base, type_list<>> {
 
 template<typename Self, typename Base, typename Info, typename... Rest>
 struct instantiate_chain<Self, Base, type_list<Info, Rest...>> {
-private:
     using super = typename instantiate_chain<Self, Base, type_list<Rest...>>::type;
 
-public:
     using type = typename Info::template c4_apply_mixin<Self, super>;
 };
 
@@ -177,12 +175,10 @@ using C4 = instantiate<Spec, Base>;
 template<template<typename, typename> class Derived,
          template<typename, typename> class Target>
 struct is_in_precedence_list {
-private:
     using derived_node = spec_info<Derived>;
     using target_node = spec_info<Target>;
     using precedence_list = mixin_precedence_list_t<derived_node>;
 
-public:
     static constexpr bool value = contains_v<precedence_list, target_node>;
 };
 

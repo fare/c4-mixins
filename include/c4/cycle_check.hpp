@@ -67,11 +67,9 @@ struct has_cycle_impl<true, Node, Traits, Path> {
 
 template<typename Node, typename Traits, typename Path>
 struct has_cycle_impl<false, Node, Traits, Path> {
-private:
     using parents = cycle_direct_parents_t<Node, Traits>;
     using new_path = cons_t<Node, Path>;
 
-public:
     static constexpr bool value =
         any_parent_has_cycle<parents, Traits, new_path>::value;
 };

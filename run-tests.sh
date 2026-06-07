@@ -25,6 +25,32 @@ for src in tests/test_*.cpp; do
 done
 
 echo
+echo "== Building expected-failure tests =="
+for src in tests/fail_*.cpp; do
+  [ -e "$src" ] || continue
+
+  name="$(basename "$src" .cpp)"
+  exe="$TEST_BUILD_DIR/$name"
+  log="$TEST_BUILD_DIR/$name.log"
+
+  echo "  $name"
+
+  if "$CXX" $CXXFLAGS "$src" -o "$exe" >"$log" 2>&1; then
+    echo "ERROR: $src compiled successfully, but it was expected to fail"
+    echo "Compiler output:"
+    cat "$log"
+    exit 1
+  fi
+
+  if ! grep -q "C4 linearization failed\|C3 merge failed" "$log"; then
+    echo "ERROR: $src failed, but not with an expected C4/C3 diagnostic"
+    echo "Compiler output:"
+    cat "$log"
+    exit 1
+  fi
+done
+
+echo
 echo "== Building examples =="
 for src in examples/[0-9][0-9]_*.cpp; do
   name="$(basename "$src" .cpp)"

@@ -90,10 +90,8 @@ using map_insert_t = typename map_insert<Map, Key, Value>::type;
 
 template<typename Map, typename Key, auto Delta = 1>
 struct map_increment {
-private:
     static constexpr auto current = map_get_v<Map, Key, 0>;
 
-public:
     using type = map_insert_t<Map, Key, current + Delta>;
 };
 
@@ -102,10 +100,8 @@ using map_increment_t = typename map_increment<Map, Key, Delta>::type;
 
 template<typename Map, typename Key, auto Delta = 1>
 struct map_decrement {
-private:
     static constexpr auto current = map_get_v<Map, Key, 0>;
 
-public:
     using type = map_insert_t<Map, Key, current - Delta>;
 };
 

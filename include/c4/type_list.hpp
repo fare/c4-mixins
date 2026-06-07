@@ -164,10 +164,8 @@ struct remove_nulls<type_list<>> {
 
 template<typename T, typename... Rest>
 struct remove_nulls<type_list<T, Rest...>> {
-private:
     using rest_cleaned = typename remove_nulls<type_list<Rest...>>::type;
 
-public:
     using type = std::conditional_t<is_empty_v<T>, rest_cleaned, cons_t<T, rest_cleaned>>;
 };
 
@@ -189,11 +187,9 @@ struct append_reverse_until<Pred, type_list<>, Dst> {
 
 template<template<typename> class Pred, typename T, typename... Rest, typename Dst>
 struct append_reverse_until<Pred, type_list<T, Rest...>, Dst> {
-private:
     static constexpr bool matches = Pred<T>::value;
     using next = append_reverse_until<Pred, type_list<Rest...>, cons_t<T, Dst>>;
 
-public:
     using remaining = std::conditional_t<matches, type_list<T, Rest...>, typename next::remaining>;
     using result = std::conditional_t<matches, Dst, typename next::result>;
 };
@@ -209,13 +205,11 @@ struct append_unique_all<List, type_list<>> {
 
 template<typename List, typename First, typename... Rest>
 struct append_unique_all<List, type_list<First, Rest...>> {
-private:
     using with_first = std::conditional_t<
         contains_v<List, First>,
         List,
         append_t<List, First>>;
 
-public:
     using type = typename append_unique_all<with_first, type_list<Rest...>>::type;
 };
 
@@ -236,10 +230,8 @@ struct concat_unique_all<type_list<>> {
 
 template<typename First, typename... Rest>
 struct concat_unique_all<type_list<First, Rest...>> {
-private:
     using rest = typename concat_unique_all<type_list<Rest...>>::type;
 
-public:
     using type = append_unique_all_t<First, rest>;
 };
 
