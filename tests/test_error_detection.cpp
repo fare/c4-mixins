@@ -1,7 +1,7 @@
 // Error Detection Tests
 // Verifies that error detection logic works correctly at compile-time
 
-#include <c4/c4.hpp>
+#include <c4/mixins.hpp>
 #include "../examples/mixin_names.hpp"
 #include <iostream>
 #include <vector>

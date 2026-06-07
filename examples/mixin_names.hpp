@@ -6,7 +6,7 @@
 // for runtime CPL introspection.  This keeps the collectNames protocol
 // entirely out of the core library.
 
-#include <c4/c4.hpp>
+#include <c4/mixins.hpp>
 #include <vector>
 #include <string>
 

@@ -10,7 +10,7 @@
 // All of these are implementation details of each other and are not
 // intended to be used independently.
 //
-// Spec types (Mixin, SpecHelper, etc.) are defined in c4.hpp
+// Spec types (Mixin, SpecHelper, etc.) are defined in mixins.hpp
 // before this file is included.
 
 #include "type_list.hpp"

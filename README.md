@@ -184,11 +184,11 @@ g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
 
 ```
 include/c4/
-├── c4.hpp            # Main header (include this)
+├── mixins.hpp            # Main header (include this)
 ├── type_list.hpp     # Compile-time list operations
 ├── type_map.hpp      # Compile-time associative map (ancestor counting)
 ├── dag.hpp           # Cycle detection
-└── c4_linearize.hpp  # C4 algorithm (included by c4.hpp)
+└── linearize.hpp  # C4 algorithm (included by mixins.hpp)
 ```
 
 ### Type-Level Infrastructure

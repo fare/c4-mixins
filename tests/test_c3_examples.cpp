@@ -2,7 +2,7 @@
 // These test the C3 linearization algorithm with various hierarchies
 // All mixins are templates that chain properly and implement collectNames
 
-#include <c4/c4.hpp>
+#include <c4/mixins.hpp>
 #include "../examples/mixin_names.hpp"
 #include <type_traits>
 #include <iostream>

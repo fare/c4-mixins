@@ -4,11 +4,11 @@
 // Counts nodes and edges visited during graph traversal.
 //
 // Usage:
-//   #include <c4/c4.hpp>
+//   #include <c4/mixins.hpp>
 //   #include "counting.hpp"
 //   using MyClass = c4::examples::Counting<c4::Mixin>;
 
-#include <c4/c4.hpp>
+#include <c4/mixins.hpp>
 
 namespace c4 {
 namespace examples {

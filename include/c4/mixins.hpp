@@ -149,7 +149,7 @@ inline constexpr bool IsInternalSuffixSpec_v = IsInternalSuffixSpec<Spec>::value
 // Algorithm
 // ============================================================================
 
-#include "c4_linearize.hpp"
+#include "linearize.hpp"
 
 namespace c4 {
 

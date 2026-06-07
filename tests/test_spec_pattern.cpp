@@ -1,7 +1,7 @@
 // Test for C4 spec pattern
 // Shows the clean API where specs are defined directly as template mixins
 
-#include <c4/c4.hpp>
+#include <c4/mixins.hpp>
 #include "../examples/mixin_names.hpp"
 #include <iostream>
 #include <vector>
