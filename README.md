@@ -5,8 +5,8 @@ ancestor order is computed by C4 linearization.
 
 C4 linearization implements **optimal inheritance**: it combines the expressiveness of
 **flavorful multiple inheritance** (cooperative multiple inheritance in the style of
-Flavors, CLOS, Ruby, Python, Scala), with the performance of single inheritance where needed,
-using "suffix" classes.
+Flavors, CLOS, Ruby, Python, Scala, that solves the infamous C++ diamond problem),
+with the performance of single inheritance where needed, using "suffix" classes.
 
 ## Overview
 
@@ -16,21 +16,23 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
    Multiple parent methods are not lose-lose conflict, but win-win cooperation. They can each
    call the next (Super) method along a linearized class precedence list. No information loss.
    Flavorful multiple inheritance solves the diamond inheritance problem that gave a bad reputation
-   to C++ multiple inheritance.
+   to C++ multiple inheritance: in the “flavorless” approach of C++, “diamond” situations of
+   multiple independent parents with a common ancestor force are a conflict that must be resolved
+   by choosing at most one of the parents and reimplementing any effect desired from the other ones.
+   In the flavorful approach, all ancestors cooperate and contribute their behavior without conflict.
 
 2. **Linearization Consistency**:
-   All linearization algorithms since Flavors preserve the **Inheritance Order**, such that
-   a descendent appears before its ancestors in the precedence list.
-   C4, like New Flavors, CLOS, C3 (and after them Dylan Python, Perl; but unhappily not Ruby, Scala),
-   respects the **Local Precedence Order** between user-specified parents;
-   furthermore, C4 uniquely allows this order to be a DAG rather than a total order.
-   Like C3 (and Dylan, Python, Perl; but not CLOS, Ruby, Scala), C4 also ensures
-   the **Monotonicity** of precedence lists, such that an ancestor's precedence list
-   is always a sub-order of its descendent's.
-   Like C3, C4 also provides **Extended Precedence**, a consistent preference of a class
-   and its exclusive ancestors over others placed after it in the local precedence order.
-   These consistency properties ensure that, e.g. you can predictably define methods to
-   handle locking or memory allocation for you without risking deadlocks or use-after-free.
+   All linearization algorithms since Flavors preserve the **Inheritance Order**, such that a
+   descendent appears before its ancestors in the precedence list. In addition, C4, like
+   New Flavors, CLOS, C3 (and after them Dylan Python, Perl; but unhappily not Ruby, Scala),
+   respects the **Local Precedence Order** between user-specified parents; furthermore, C4
+   uniquely allows this local precedence order to be an arbitrary DAG rather than a total order.
+   Like C3 (and Dylan, Python, Perl; but not CLOS, Ruby, Scala), C4 also ensures the
+   **Monotonicity** of precedence lists, such that an ancestor's precedence list is always
+   a sub-order of its descendent's. Like C3, C4 also provides **Extended Precedence**, a consistent
+   preference of a class and its exclusive ancestors over others placed after it in the local
+   precedence order. These consistency properties ensure that, you can predictably define methods
+   to e.g. handle locking or memory allocation for you without risking deadlocks or use-after-free.
 
 3. **Performance of Single Inheritance**:
    Classes that declare "static constexpr bool __c4__is_suffix = true;" are *suffix classes*,
