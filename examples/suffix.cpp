@@ -1,6 +1,6 @@
 // Suffix specification example — demonstrates the C4 suffix property.
 //
-// Suffix specs (__c4__is_suffix = true) are always placed at the end of any
+// Suffix specs (c4_suffix = true) are always placed at the end of any
 // descendant's CPL, enabling fixed-offset field layout and single-inheritance-
 // style optimizations across the whole class hierarchy.
 //
@@ -24,8 +24,8 @@ using c4::examples::C4N;
 // Universal root — no parents.
 template <typename Self, typename Super>
 struct Object : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Object"); Super::collectNames(names);
     }
@@ -34,8 +34,8 @@ struct Object : public Super {
 // Named: extends Object, adds a name field.
 template <typename Self, typename Super>
 struct Named : public Super {
-    using __c4__parents = TypeList<SpecList<Object>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<Object>>;
+    static constexpr bool c4_suffix = true;
     std::string name;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Named"); Super::collectNames(names);
@@ -47,8 +47,8 @@ struct Named : public Super {
 // Printable: infix mixin that uses the name field from the suffix ancestor Named.
 template <typename Self, typename Super>
 struct Printable : public Super {
-    using __c4__parents = TypeList<SpecList<Named>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<Named>>;
+    static constexpr bool c4_suffix = false;
     void print() const { std::cout << "Printable: " << this->name << "\n"; }
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Printable"); Super::collectNames(names);
@@ -58,8 +58,8 @@ struct Printable : public Super {
 // Loggable: infix mixin, also uses Named.
 template <typename Self, typename Super>
 struct Loggable : public Super {
-    using __c4__parents = TypeList<SpecList<Named>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<Named>>;
+    static constexpr bool c4_suffix = false;
     void log(const std::string& msg) const {
         std::cout << "[" << this->name << "] " << msg << "\n";
     }
@@ -73,8 +73,8 @@ struct Loggable : public Super {
 // Named and Object stay at the end because they are suffix specs.
 template <typename Self, typename Super>
 struct Service : public Super {
-    using __c4__parents = TypeList<SpecList<Printable, Loggable>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<Printable, Loggable>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Service"); Super::collectNames(names);
     }

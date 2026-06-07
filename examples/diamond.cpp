@@ -16,8 +16,8 @@ using c4::examples::C4N;
 // Super is Mixin when composed; Super::collectNames() is the empty base case.
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O");
         Super::collectNames(names);
@@ -27,8 +27,8 @@ struct O : public Super {
 // A and B each inherit from O
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A");
         Super::collectNames(names);
@@ -37,8 +37,8 @@ struct A : public Super {
 
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B");
         Super::collectNames(names);
@@ -48,8 +48,8 @@ struct B : public Super {
 // Diamond inherits from both A and B
 template <typename Self, typename Super>
 struct Diamond : public Super {
-    using __c4__parents = TypeList<SpecList<A, B>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A, B>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Diamond");
         Super::collectNames(names);

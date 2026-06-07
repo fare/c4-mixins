@@ -19,8 +19,8 @@ class Counting : public Super {
     int edges_visited = 0;
 
 public:
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     template <typename... Args>
     Counting(Args&&... args) : Super(std::forward<Args>(args)...) {}

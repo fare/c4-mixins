@@ -39,8 +39,8 @@ struct Cloneable {
 // It inherits from Cloneable<Self> and Super; Self is the final composed class.
 template <typename Self, typename Super>
 struct CloneableMixin : public Cloneable<Self>, public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     std::unique_ptr<Self> clone() const override {
         return std::make_unique<Self>(static_cast<const Self&>(*this));
@@ -64,8 +64,8 @@ struct Serializable {
 // A spec that satisfies Serializable.
 template <typename Self, typename Super>
 struct SerializableMixin : public Serializable, public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     std::string tag = "node";
 
@@ -83,8 +83,8 @@ struct SerializableMixin : public Serializable, public Super {
 
 template <typename Self, typename Super>
 struct Node : public Super {
-    using __c4__parents = TypeList<SpecList<CloneableMixin, SerializableMixin>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<CloneableMixin, SerializableMixin>>;
+    static constexpr bool c4_suffix = false;
 
     int value = 0;
 

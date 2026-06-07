@@ -22,7 +22,7 @@
 
 namespace c4 {
 
-// Make TypeList available in the c4 namespace for __c4__parents declarations
+// Make TypeList available in the c4 namespace for c4_parents declarations
 using meta::TypeList;
 
 // ============================================================================
@@ -55,13 +55,13 @@ struct SpecHelper : public Mixin {
     template <typename Self, typename Base>
     using __c4__apply_mixin = Spec<Self, Base>;
 
-    using __c4__parents_type  = FlatParents;    // flat TypeList<SpecHelper<...>,...>
+    using c4_parents_type  = FlatParents;    // flat TypeList<SpecHelper<...>,...>
     using __c4__parent_groups = ParentGroups;   // TypeList<TypeList<SpecHelper<...>,...>,...>
-    static constexpr bool __c4__is_suffix = IsSuffix;
+    static constexpr bool c4_suffix = IsSuffix;
 };
 
 // ============================================================================
-// Convert __c4__parents (TypeList<SpecList<...>,...>) to internal representation
+// Convert c4_parents (TypeList<SpecList<...>,...>) to internal representation
 // ============================================================================
 
 // Forward declaration
@@ -111,19 +111,19 @@ public:
 };
 
 // Instantiate Spec<Mixin, Mixin> as a sentinel to read its metadata.
-// Self=Mixin and Super=Mixin are placeholders — only __c4__parents and
-// __c4__is_suffix are read, and those must not depend on Self or Super.
+// Self=Mixin and Super=Mixin are placeholders — only c4_parents and
+// c4_suffix are read, and those must not depend on Self or Super.
 template <template<typename, typename> class Spec>
 struct MakeSpecInternal {
 private:
     using Instance    = Spec<Mixin, Mixin>;
-    using ParentsDecl = typename Instance::__c4__parents;
+    using ParentsDecl = typename Instance::c4_parents;
     using Converted   = ParentGroupsToInternal<ParentsDecl>;
 public:
     using type = SpecHelper<Spec,
                             typename Converted::flat,
                             typename Converted::groups,
-                            Instance::__c4__is_suffix>;
+                            Instance::c4_suffix>;
 };
 
 template <template<typename, typename> class Spec>

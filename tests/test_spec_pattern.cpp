@@ -17,8 +17,8 @@ using c4::examples::C4N;
 // Base spec - no parents
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O");
@@ -29,8 +29,8 @@ struct O : public Super {
 // A inherits from O
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A");
@@ -41,8 +41,8 @@ struct A : public Super {
 // B inherits from O
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B");
@@ -53,8 +53,8 @@ struct B : public Super {
 // Diamond inherits from A and B
 template <typename Self, typename Super>
 struct Diamond : public Super {
-    using __c4__parents = TypeList<SpecList<A, B>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A, B>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Diamond");
@@ -70,8 +70,8 @@ struct Diamond : public Super {
 
 template <typename Self, typename Super>
 struct Point : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;  // Suffix spec!
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;  // Suffix spec!
 
     double x = 0.0, y = 0.0;
 
@@ -83,8 +83,8 @@ struct Point : public Super {
 
 template <typename Self, typename Super>
 struct ColoredPoint : public Super {
-    using __c4__parents = TypeList<SpecList<Point>>;
-    static constexpr bool __c4__is_suffix = false;  // Infix, but parent is suffix
+    using c4_parents = TypeList<SpecList<Point>>;
+    static constexpr bool c4_suffix = false;  // Infix, but parent is suffix
 
     std::string color = "black";
 

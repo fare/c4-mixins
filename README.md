@@ -1,21 +1,23 @@
-# C4-Mixins: Header-only C++20 Mixins with C4 linearized "Super" chain.
+# C4-Mixins
 
-c4-mixins is a header-only C++20 library for mixins that cooperate through Super calls;
-ancestor order is computed by C4 linearization.
+Header-only C++20 mixins with a C4-linearized `Super` chain.
 
-C4 linearization implements **optimal inheritance**: it combines the expressiveness of
-**flavorful multiple inheritance** (cooperative multiple inheritance in the style of
-Flavors, CLOS, Ruby, Python, Scala, that solves the infamous C++ diamond problem),
-with the performance of single inheritance where needed, using "suffix" classes.
+`c4-mixins` composes C++ mixins into a single inheritance chain.
+Each mixin method can call `Super::method()`, and
+C4 linearization computes which method comes next.
 
-## Overview
+This gives independently written mixins a cooperative protocol to define method across diamonds:
+every ancestor's behavior takes effect once and only once, in a consistent order.
+Inconsistent inheritance graphs are rejected at compile time.
+
+## Why C4?
 
 This project implements **Optimal Inheritance** using C++ template metaprogramming, based on:
 
 1. **Flavorful Multiple Inheritance**:
    Multiple parent methods are not lose-lose conflict, but win-win cooperation. They can each
    call the next (Super) method along a linearized class precedence list. No information loss.
-   Flavorful multiple inheritance solves the diamond inheritance problem that gave a bad reputation
+   Flavorful multiple inheritance addresses the diamond inheritance problem that gave a bad reputation
    to C++ multiple inheritance: in the “flavorless” approach of C++, “diamond” situations of
    multiple independent parents with a common ancestor force are a conflict that must be resolved
    by choosing at most one of the parents and reimplementing any effect desired from the other ones.
@@ -35,7 +37,7 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
    to e.g. handle locking or memory allocation for you without risking deadlocks or use-after-free.
 
 3. **Performance of Single Inheritance**:
-   Classes that declare "static constexpr bool __c4__is_suffix = true;" are *suffix classes*,
+   Classes that declare "static constexpr bool c4_suffix = true;" are *suffix classes*,
    whose class precedence list is guaranteed to be the suffix of that of any descendent,
    enabling all the usual optimizations associated with single inheritance:
    fixed-offset fields, fixed-offset dynamic method dispatch, etc.
@@ -50,9 +52,10 @@ Sounds confusing? Read my book in the bibliography.
 
 ## Project Status
 
-It works. Tests pass.
-
-It just needs to be packaged and distributed into a C++ library that programmers will use.
+Experimental, pre-1.0.
+The same algorithm is used in production in other languages.
+The implementation and the examples compile and pass tests.
+However, the public C++ API may still change.
 
 ## Authors
 
@@ -92,8 +95,8 @@ using c4::examples::C4N;
 // Base spec - no parents
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O"); Super::collectNames(names);
     }
@@ -102,8 +105,8 @@ struct O : public Super {
 // A and B each inherit from O
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A"); Super::collectNames(names);
     }
@@ -111,8 +114,8 @@ struct A : public Super {
 
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B"); Super::collectNames(names);
     }
@@ -121,8 +124,8 @@ struct B : public Super {
 // Diamond inherits from both A and B
 template <typename Self, typename Super>
 struct Diamond : public Super {
-    using __c4__parents = TypeList<SpecList<A, B>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A, B>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("Diamond"); Super::collectNames(names);
     }
@@ -145,7 +148,7 @@ int main() {
 }
 ```
 
-“Suffix property”: suffix specs (marked `static constexpr bool __c4__is_suffix = true`)
+“Suffix property”: suffix specs (marked `static constexpr bool c4_suffix = true`)
 are guaranteed to have their class precedence list as the suffix of
 any descendent’s class precedence list, enabling fixed-offset field access.
 Suffix specs in a given class’s ancestry are always in a total order,
@@ -172,7 +175,7 @@ g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
 |------|-------------|
 | `examples/diamond.cpp` | Basic diamond inheritance; canonical C4 usage with `C4N<>` |
 | `examples/interface.cpp` | Shows how to inherit from an interface or abstract class |
-| `examples/suffix.cpp` | Suffix specs (`__c4__is_suffix = true`), fixed-tail CPL placement |
+| `examples/suffix.cpp` | Suffix specs (`c4_suffix = true`), fixed-tail CPL placement |
 | `examples/multiple_parent_lists.cpp` | Multiple independent parent lists: `TypeList<SpecList<A,B>, SpecList<C>>` |
 | `examples/mixin_names.hpp` | `MixinNames` base and `C4N<Spec>` alias — used by examples and tests that need `collectNames` |
 | `examples/counting.hpp` | `Counting` mixin tracking nodes/edges visited; illustrates stateful mixins |
@@ -244,11 +247,3 @@ pp. 164–178. doi:10.1007/3-540-44815-2_12.
 Explains the basic approach to implementing Mixin inheritance on top of C++ templates
 (not quite as modular as Flavorful Multiple Inheritance, but the basic block
 on top of which you can build it).
-
-## TODO
-
-  * Package and distribute it as a library that C++ programmers might actually use.
-    How? Where? I don't know, I don't partake in the C++ ecosystem.
-
-  * Figure out a way to be O(dn) or at least O(dn log n) with some kind of hash-tables
-    or sets for the ancestor counting during template processing.

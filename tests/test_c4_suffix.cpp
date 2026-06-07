@@ -56,8 +56,8 @@ namespace suffix_compatible {
 // Base suffix specs
 template <typename Self, typename Super>
 struct SBA : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("SBA");
@@ -67,8 +67,8 @@ struct SBA : public Super {
 
 template <typename Self, typename Super>
 struct SBB : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("SBB");
@@ -79,8 +79,8 @@ struct SBB : public Super {
 // SBS inherits from SBA (both suffix)
 template <typename Self, typename Super>
 struct SBS : public Super {
-    using __c4__parents = TypeList<SpecList<SBA>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<SBA>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("SBS");
@@ -91,8 +91,8 @@ struct SBS : public Super {
 // sBs inherits from SBA (both suffix)
 template <typename Self, typename Super>
 struct sBs : public Super {
-    using __c4__parents = TypeList<SpecList<SBA>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<SBA>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("sBs");
@@ -103,8 +103,8 @@ struct sBs : public Super {
 // SBC inherits from SBS and SBB (suffix)
 template <typename Self, typename Super>
 struct SBC : public Super {
-    using __c4__parents = TypeList<SpecList<SBS, SBB>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<SBS, SBB>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("SBC");
@@ -135,8 +135,8 @@ namespace mixed_infix_suffix {
 // O is a suffix spec (base)
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O");
@@ -147,8 +147,8 @@ struct O : public Super {
 // A is infix, inherits from suffix O
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A");
@@ -159,8 +159,8 @@ struct A : public Super {
 // B is infix, inherits from infix A (which has suffix O in CPL)
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<A>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B");
@@ -191,8 +191,8 @@ namespace complex_suffix {
 // Linear suffix chain
 template <typename Self, typename Super>
 struct S1 : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("S1");
@@ -202,8 +202,8 @@ struct S1 : public Super {
 
 template <typename Self, typename Super>
 struct S2 : public Super {
-    using __c4__parents = TypeList<SpecList<S1>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<S1>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("S2");
@@ -213,8 +213,8 @@ struct S2 : public Super {
 
 template <typename Self, typename Super>
 struct S3 : public Super {
-    using __c4__parents = TypeList<SpecList<S2>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<S2>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("S3");
@@ -224,8 +224,8 @@ struct S3 : public Super {
 
 template <typename Self, typename Super>
 struct S4 : public Super {
-    using __c4__parents = TypeList<SpecList<S3>>;
-    static constexpr bool __c4__is_suffix = true;
+    using c4_parents = TypeList<SpecList<S3>>;
+    static constexpr bool c4_suffix = true;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("S4");
@@ -236,8 +236,8 @@ struct S4 : public Super {
 // Infix spec inheriting from middle of chain
 template <typename Self, typename Super>
 struct I : public Super {
-    using __c4__parents = TypeList<SpecList<S2>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<S2>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("I");
@@ -282,8 +282,8 @@ namespace multiple_parent_lists {
 
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O");
@@ -293,8 +293,8 @@ struct O : public Super {
 
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A");
@@ -304,8 +304,8 @@ struct A : public Super {
 
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B");
@@ -315,8 +315,8 @@ struct B : public Super {
 
 template <typename Self, typename Super>
 struct C : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("C");
@@ -329,8 +329,8 @@ struct C : public Super {
 // but the relative ordering between C and {A,B} is not locally constrained.
 template <typename Self, typename Super>
 struct MultiParentList : public Super {
-    using __c4__parents = TypeList<SpecList<A, B>, SpecList<C>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A, B>, SpecList<C>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("MultiParentList");

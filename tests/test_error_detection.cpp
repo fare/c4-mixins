@@ -30,9 +30,9 @@ void test() {
     std::cout << "  cause infinite template instantiation, caught by the\n";
     std::cout << "  compiler automatically.\n\n";
     std::cout << "  If we tried:\n";
-    std::cout << "    struct A : __c4__parents<C>\n";
-    std::cout << "    struct B : __c4__parents<A>\n";
-    std::cout << "    struct C : __c4__parents<B>  // cycle\n\n";
+    std::cout << "    struct A : c4_parents<C>\n";
+    std::cout << "    struct B : c4_parents<A>\n";
+    std::cout << "    struct C : c4_parents<B>  // cycle\n\n";
     std::cout << "  Expected: \"recursive instantiation\" / infinite template recursion\n";
     std::cout << "  ✓ Circular dependency prevention verified (C++ compiler)\n\n";
 }
@@ -50,8 +50,8 @@ namespace test_confused_grid {
 
 template <typename Self, typename Super>
 struct HG : public Super {  // Horizontal guide
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("HG");
@@ -61,8 +61,8 @@ struct HG : public Super {  // Horizontal guide
 
 template <typename Self, typename Super>
 struct VG : public Super {  // Vertical guide
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("VG");
@@ -72,8 +72,8 @@ struct VG : public Super {  // Vertical guide
 
 template <typename Self, typename Super>
 struct HVG : public Super {  // Horizontal-then-vertical
-    using __c4__parents = TypeList<SpecList<HG, VG>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<HG, VG>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("HVG");
@@ -83,8 +83,8 @@ struct HVG : public Super {  // Horizontal-then-vertical
 
 template <typename Self, typename Super>
 struct VHG : public Super {  // Vertical-then-horizontal (conflict with HVG!)
-    using __c4__parents = TypeList<SpecList<VG, HG>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<VG, HG>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("VHG");
@@ -92,7 +92,7 @@ struct VHG : public Super {  // Vertical-then-horizontal (conflict with HVG!)
     }
 };
 
-// Composing struct CG : __c4__parents<HVG, VHG> would trigger:
+// Composing struct CG : c4_parents<HVG, VHG> would trigger:
 //   static_assert: "C3 merge failed: No valid candidate found"
 
 void test() {
@@ -114,8 +114,8 @@ namespace test_valid {
 
 template <typename Self, typename Super>
 struct ValidBase : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("ValidBase");
@@ -125,8 +125,8 @@ struct ValidBase : public Super {
 
 template <typename Self, typename Super>
 struct ValidDerived : public Super {
-    using __c4__parents = TypeList<SpecList<ValidBase>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<ValidBase>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("ValidDerived");
@@ -136,8 +136,8 @@ struct ValidDerived : public Super {
 
 template <typename Self, typename Super>
 struct ValidDiamond : public Super {
-    using __c4__parents = TypeList<SpecList<ValidDerived, ValidBase>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<ValidDerived, ValidBase>>;
+    static constexpr bool c4_suffix = false;
 
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("ValidDiamond");
@@ -179,8 +179,8 @@ namespace test_cycle_check {
 
 template <typename Self, typename Super>
 struct GoodSpec : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
 };
 
 static_assert(!HasCycle_v<MakeSpecInternal_t<GoodSpec>>, "GoodSpec should not have a cycle");

@@ -545,7 +545,7 @@ public:
 template <typename Spec>
 struct C4Linearize {
 private:
-    using Parents = typename Spec::__c4__parents_type;
+    using Parents = typename Spec::c4_parents_type;
     static constexpr size_t num_parents = Parents::size;
 
     static_assert(!HasCycle_v<Spec>,

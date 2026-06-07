@@ -1,6 +1,6 @@
 // Multiple parent lists example — demonstrates TypeList<SpecList<...>, SpecList<...>>.
 //
-// A spec's __c4__parents can list multiple independent SpecLists.
+// A spec's c4_parents can list multiple independent SpecLists.
 // Each SpecList constrains the relative order of its members in the CPL,
 // but parent lists are independent of each other — no ordering is imposed between
 // members of different lists.  C3 finds the unique linearization consistent
@@ -25,8 +25,8 @@ using c4::examples::C4N;
 
 template <typename Self, typename Super>
 struct O : public Super {
-    using __c4__parents = TypeList<>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("O"); Super::collectNames(names);
     }
@@ -34,8 +34,8 @@ struct O : public Super {
 
 template <typename Self, typename Super>
 struct A : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("A"); Super::collectNames(names);
     }
@@ -43,8 +43,8 @@ struct A : public Super {
 
 template <typename Self, typename Super>
 struct B : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("B"); Super::collectNames(names);
     }
@@ -52,8 +52,8 @@ struct B : public Super {
 
 template <typename Self, typename Super>
 struct C : public Super {
-    using __c4__parents = TypeList<SpecList<O>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<O>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("C"); Super::collectNames(names);
     }
@@ -66,8 +66,8 @@ struct C : public Super {
 // C3 determines the unique valid linearization: MultiParentList A B C O
 template <typename Self, typename Super>
 struct MultiParentList : public Super {
-    using __c4__parents = TypeList<SpecList<A, B>, SpecList<C>>;
-    static constexpr bool __c4__is_suffix = false;
+    using c4_parents = TypeList<SpecList<A, B>, SpecList<C>>;
+    static constexpr bool c4_suffix = false;
     void collectNames(std::vector<std::string>& names) const {
         names.push_back("MultiParentList"); Super::collectNames(names);
     }

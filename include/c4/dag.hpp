@@ -23,7 +23,7 @@ struct AnyParentHasCycle<TypeList<Parent, Rest...>, NewPath> {
     template <typename Spec, typename Path>
     struct HasCycleHelper {
         static constexpr bool in_path = Contains_v<Path, Spec>;
-        static constexpr bool value = in_path || AnyParentHasCycle<typename Spec::__c4__parents_type, Cons_t<Spec, Path>>::value;
+        static constexpr bool value = in_path || AnyParentHasCycle<typename Spec::c4_parents_type, Cons_t<Spec, Path>>::value;
     };
 
     static constexpr bool value =
@@ -37,7 +37,7 @@ private:
     static constexpr bool in_path = Contains_v<Path, Spec>;
     using NewPath = Cons_t<Spec, Path>;
 public:
-    static constexpr bool value = in_path || AnyParentHasCycle<typename Spec::__c4__parents_type, NewPath>::value;
+    static constexpr bool value = in_path || AnyParentHasCycle<typename Spec::c4_parents_type, NewPath>::value;
 };
 
 template <typename Spec>
