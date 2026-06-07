@@ -1,8 +1,12 @@
-# C4: Optimal Inheritance in C++
+# C4-Mixins: Header-only C++20 Mixins with C4 linearized "Super" chain.
 
-A C++20 implementation of the C4 linearization algorithm, enabling "optimal inheritance" —
-combining the expressiveness of flavorful multiple inheritance
-with the performance of single inheritance.
+c4-mixins is a header-only C++20 library for mixins that cooperate through Super calls;
+ancestor order is computed by C4 linearization.
+
+C4 linearization implements **optimal inheritance**: it combines the expressiveness of
+**flavorful multiple inheritance** (cooperative multiple inheritance in the style of
+Flavors, CLOS, Ruby, Python, Scala), with the performance of single inheritance where needed,
+using "suffix" classes.
 
 ## Overview
 
@@ -10,17 +14,32 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
 
 1. **Flavorful Multiple Inheritance**:
    Multiple parent methods are not lose-lose conflict, but win-win cooperation. They can each
-   call the next method along a linearized class precedence list. No information loss.
-2. **Performance of Single Inheritance**:
+   call the next (Super) method along a linearized class precedence list. No information loss.
+   Flavorful multiple inheritance solves the diamond inheritance problem that gave a bad reputation
+   to C++ multiple inheritance.
+
+2. **Linearization Consistency**:
+   All linearization algorithms since Flavors preserve the **Inheritance Order**, such that
+   a descendent appears before its ancestors in the precedence list.
+   C4, like New Flavors, CLOS, C3 (and after them Dylan Python, Perl; but unhappily not Ruby, Scala),
+   respects the **Local Precedence Order** between user-specified parents;
+   furthermore, C4 uniquely allows this order to be a DAG rather than a total order.
+   Like C3 (and Dylan, Python, Perl; but not CLOS, Ruby, Scala), C4 also ensures
+   the **Monotonicity** of precedence lists, such that an ancestor's precedence list
+   is always a sub-order of its descendent's.
+   Like C3, C4 also provides **Extended Precedence**, a consistent preference of a class
+   and its exclusive ancestors over others placed after it in the local precedence order.
+   These consistency properties ensure that, e.g. you can predictably define methods to
+   handle locking or memory allocation for you without risking deadlocks or use-after-free.
+
+3. **Performance of Single Inheritance**:
    Classes that declare "static constexpr bool __c4__is_suffix = true;" are *suffix classes*,
    whose class precedence list is guaranteed to be the suffix of that of any descendent,
-   enabling all the usual optimizations of single inheritance (e.g. fixed-offset fields, etc.)
-3. **Linearization Consistency**: respect user-provided local precedence order
-   (a DAG specified as zero, one or more lists of mixins), monotonicity of precedence lists,
-   and preference of a specification and its exclusive ancestors over another,
-   ensuring consistency of behavior across methods and across
-   subclasses, so that, e.g. you could have multiple-inheritance methods handle locking
-   or memory allocation for you without risking deadlocks or use-after-free.
+   enabling all the usual optimizations associated with single inheritance:
+   fixed-offset fields, fixed-offset dynamic method dispatch, etc.
+   C++ developers can enjoy their zero-cost abstractions where needed, yet also
+   use more expressive virtual dynamic dispatch where necessary.
+
 4. **Compile-time resolution of inheritance**:
    using C++ templates, we ensure that all inheritance computations happen at compile-time;
    there is zero runtime overhead to using this library.
@@ -33,20 +52,27 @@ It works. Tests pass.
 
 It just needs to be packaged and distributed into a C++ library that programmers will use.
 
-## Contributors
+## Authors
 
-Code largely coded by Claude Opus 4.5 (Anthropic) as guided by François-René Rideau.
-Claude one-shotted a working but sloppy solution from specification, and then I had
-it rewrite and simplify it into half as much code with a nicer and more powerful API
-(again with help from Claude).
+I (François-René Rideau) designed and implemented this code as part of Gerbil Scheme.
+Then I used Claude Opus 4.5 from Anthropic to translate it to C++ templates.
+Claude one-shotted a working but sloppy solution from specification. Finally,
+I rewrote and simplified it into half as much code, with a nicer and more powerful API
+(again with some help from Claude).
+
+I also invented the word "flavorful", after Flavors (1979), the first Object System
+that did multiple inheritance the right way, which paved the way to CLOS
+(the Commont Lisp Object System), and the basic design of which (if not the advanced features)
+was later copied by Ruby, Python, Perl, Scala, and more. For complete explanations,
+see my book "Lambda the Ultimate Object" https://fare.tunes.org/files/cs/poof/ltuo.html
 
 ## Building and Testing
 
 ```bash
-cd poof/cpp
-g++ -std=c++20 -Iinclude tests/test_spec_pattern.cpp   -o build/test_spec_pattern   && build/test_spec_pattern
-g++ -std=c++20 -Iinclude tests/test_c3_examples.cpp    -o build/test_c3_examples    && build/test_c3_examples
-g++ -std=c++20 -Iinclude tests/test_c4_suffix.cpp      -o build/test_c4_suffix      && build/test_c4_suffix
+mkdir -p build
+g++ -std=c++20 -Iinclude tests/test_spec_pattern.cpp   -o build/test_spec_pattern   && build/test_spec_pattern &&
+g++ -std=c++20 -Iinclude tests/test_c3_examples.cpp    -o build/test_c3_examples    && build/test_c3_examples &&
+g++ -std=c++20 -Iinclude tests/test_c4_suffix.cpp      -o build/test_c4_suffix      && build/test_c4_suffix &&
 g++ -std=c++20 -Iinclude tests/test_error_detection.cpp -o build/test_error_detection && build/test_error_detection
 ```
 
@@ -136,7 +162,7 @@ inheritance context, except the word “mixin” pre-dates the words “abstract
 All runnable examples live in `examples/` and build with:
 
 ```bash
-cd poof/cpp
+mkdir -p build
 g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
 ```
 
@@ -210,9 +236,12 @@ https://fare.tunes.org/files/cs/poof/ltuo.html .
 Includes a complete theory of OO. The C4 algorithm is explained in chapter 7.
 
 **Yannis Smaragdakis and Don Batory**. "Mixin-based programming in C++". 2000.
+https://www.researchgate.net/publication/2617570_Mixin-Based_Programming_in_C .
 In Proc. International Symposium on Generative and Component-Based Software Engineering,
-pp. 164–178. doi:10.1007/3-540-44815-2_12 .
-Explains the basic approach to implementing Mixin inheritance on top of C++ templates.
+pp. 164–178. doi:10.1007/3-540-44815-2_12.
+Explains the basic approach to implementing Mixin inheritance on top of C++ templates
+(not quite as modular as Flavorful Multiple Inheritance, but the basic block
+on top of which you can build it).
 
 ## TODO
 
@@ -220,4 +249,4 @@ Explains the basic approach to implementing Mixin inheritance on top of C++ temp
     How? Where? I don't know, I don't partake in the C++ ecosystem.
 
   * Figure out a way to be O(dn) or at least O(dn log n) with some kind of hash-tables
-    or sets for the ancestor counting.
+    or sets for the ancestor counting during template processing.
