@@ -1,576 +1,361 @@
 #pragma once
 
-// C4 Linearization Algorithm
-//
-// This file merges all algorithm components:
-//   - C3 merge with O(dn) ancestor-counting optimization
-//   - C4 suffix specification support (split, merge, redundancy removal)
-//   - C4Linearize: main entry point computing the class precedence list (CPL)
-//
-// All of these are implementation details of each other and are not
-// intended to be used independently.
-//
-// Spec types (Mixin, SpecHelper, etc.) are defined in mixins.hpp
-// before this file is included.
+#include <c4/cycle_check.hpp>
+#include <c4/type_list.hpp>
+#include <c4/type_map.hpp>
 
-#include "type_list.hpp"
-#include "type_map.hpp"
-#include "dag.hpp"
+#include <type_traits>
 
 namespace c4 {
 
-using namespace meta;
-
 // ============================================================================
-// C3 Merge with O(dn) Optimization
+// linearize - C4 linearization over generic nodes
 // ============================================================================
+// Traits must provide:
+//   template<class Node> using parent_orders = type_list<type_list<Parent...>, ...>;
+//   template<class Node> static constexpr bool suffix = ...;
 //
-// Takes a list of candidate lists and merges them into a single precedence
-// list respecting:
-//   - Local order: elements appear in same relative order as in input lists
-//   - Monotonicity: no element appears before its predecessors
-//
-// Uses ancestor counting so eligible candidates are found in O(1) per step
-// instead of scanning all tails in O(dn), reducing overall complexity from
-// O(d²n²) to O(dn).
+// linearize<Node, Traits> computes and caches, as a named template
+// specialization, the precedence list and the most-specific suffix ancestor.
 
-// --- Build ancestor counts (occurrences in tails) ---
+struct no_suffix {};
 
-template <typename Lists>
-struct GetAllTailsHelper;
-
-template <>
-struct GetAllTailsHelper<TypeList<>> {
-    using type = TypeList<>;
+template<typename PrecedenceList, typename InheritedSuffix, typename MostSpecificSuffix>
+struct linearization_result {
+    using precedence_list = PrecedenceList;
+    using inherited_suffix = InheritedSuffix;
+    using most_specific_suffix = MostSpecificSuffix;
 };
 
-template <typename List, typename... Rest>
-struct GetAllTailsHelper<TypeList<List, Rest...>> {
+template<typename Node, typename Traits>
+struct linearize;
+
+template<typename Node, typename Traits>
+using precedence_list_t = typename linearize<Node, Traits>::precedence_list;
+
+template<typename Node, typename Traits>
+using inherited_suffix_t = typename linearize<Node, Traits>::inherited_suffix;
+
+template<typename Node, typename Traits>
+using most_specific_suffix_t = typename linearize<Node, Traits>::most_specific_suffix;
+
+template<typename Node, typename Traits>
+inline constexpr bool is_suffix_node_v = Traits::template suffix<Node>;
+
+// ----------------------------------------------------------------------------
+// Small local list utilities used by the merge.
+// ----------------------------------------------------------------------------
+
+template<typename T, typename U>
+struct same_type : std::false_type {};
+
+template<typename T>
+struct same_type<T, T> : std::true_type {};
+
+template<typename List, typename T>
+struct append_unique;
+
+template<typename T>
+struct append_unique<type_list<>, T> {
+    using type = type_list<T>;
+};
+
+template<typename... Ts, typename T>
+struct append_unique<type_list<Ts...>, T> {
+    using type = std::conditional_t<contains_v<type_list<Ts...>, T>,
+                                    type_list<Ts...>,
+                                    type_list<Ts..., T>>;
+};
+
+template<typename List, typename T>
+using append_unique_t = typename append_unique<List, T>::type;
+
+template<typename Acc, typename List>
+struct unique_append_all;
+
+template<typename Acc>
+struct unique_append_all<Acc, type_list<>> {
+    using type = Acc;
+};
+
+template<typename Acc, typename T, typename... Rest>
+struct unique_append_all<Acc, type_list<T, Rest...>> {
+    using type = typename unique_append_all<
+        append_unique_t<Acc, T>, type_list<Rest...>>::type;
+};
+
+template<typename Acc, typename List>
+using unique_append_all_t = typename unique_append_all<Acc, List>::type;
+
+// Flatten parent orders, preserving first occurrence of each parent.
+template<typename ParentOrders>
+struct unique_direct_parents;
+
+template<>
+struct unique_direct_parents<type_list<>> {
+    using type = type_list<>;
+};
+
+template<typename FirstOrder, typename... RestOrders>
+struct unique_direct_parents<type_list<FirstOrder, RestOrders...>> {
 private:
-    using ThisTail = Tail_t<List>;
-    using RestTails = typename GetAllTailsHelper<TypeList<Rest...>>::type;
+    using rest = typename unique_direct_parents<type_list<RestOrders...>>::type;
 public:
-    using type = std::conditional_t<IsEmpty_v<List>, RestTails, Cons_t<ThisTail, RestTails>>;
+    using type = unique_append_all_t<FirstOrder, rest>;
 };
 
-template <typename ListOfLists>
-struct FlattenHelper;
+template<typename ParentOrders>
+using unique_direct_parents_t = typename unique_direct_parents<ParentOrders>::type;
 
-template <>
-struct FlattenHelper<TypeList<>> {
-    using type = TypeList<>;
+// ----------------------------------------------------------------------------
+// Suffix merging.
+// ----------------------------------------------------------------------------
+
+template<typename S, typename Target, typename Traits>
+struct suffix_reaches;
+
+template<typename Traits>
+struct suffix_reaches<no_suffix, no_suffix, Traits> : std::true_type {};
+
+template<typename Target, typename Traits>
+struct suffix_reaches<no_suffix, Target, Traits> : std::false_type {};
+
+template<typename S, typename Traits>
+struct suffix_reaches<S, S, Traits> : std::true_type {};
+
+template<typename S, typename Target, typename Traits>
+struct suffix_reaches
+    : suffix_reaches<inherited_suffix_t<S, Traits>, Target, Traits> {};
+
+template<typename S, typename Target, typename Traits>
+inline constexpr bool suffix_reaches_v = suffix_reaches<S, Target, Traits>::value;
+
+template<typename...>
+struct dependent_false : std::false_type {};
+
+template<typename S1, typename S2, typename Traits>
+struct incompatible_suffixes {
+    static_assert(dependent_false<S1, S2, Traits>::value,
+                  "C4 linearization failed: incompatible suffix ancestors");
+    using type = no_suffix;
 };
 
-template <typename List, typename... Rest>
-struct FlattenHelper<TypeList<List, Rest...>> {
-    using type = Concat_t<List, typename FlattenHelper<TypeList<Rest...>>::type>;
+template<typename S1, typename S2, typename Traits>
+struct merge_two_suffixes;
+
+template<typename Traits>
+struct merge_two_suffixes<no_suffix, no_suffix, Traits> {
+    using type = no_suffix;
 };
 
-template <typename Elements, typename Map>
-struct CountOccurrencesHelper;
-
-template <typename Map>
-struct CountOccurrencesHelper<TypeList<>, Map> {
-    using type = Map;
+template<typename S, typename Traits>
+struct merge_two_suffixes<S, no_suffix, Traits> {
+    using type = S;
 };
 
-template <typename E, typename... Rest, typename Map>
-struct CountOccurrencesHelper<TypeList<E, Rest...>, Map> {
-    using type = typename CountOccurrencesHelper<
-        TypeList<Rest...>,
-        Increment_t<Map, E>
-    >::type;
+template<typename S, typename Traits>
+struct merge_two_suffixes<no_suffix, S, Traits> {
+    using type = S;
 };
 
-template <typename CandidateLists>
-struct BuildAncestorCounts {
-private:
-    using AllTails = typename GetAllTailsHelper<CandidateLists>::type;
-    using AllTailElements = typename FlattenHelper<AllTails>::type;
-public:
-    using type = typename CountOccurrencesHelper<AllTailElements, TypeMap<>>::type;
+template<typename S, typename Traits>
+struct merge_two_suffixes<S, S, Traits> {
+    using type = S;
 };
 
-template <typename CandidateLists>
-using BuildAncestorCounts_t = typename BuildAncestorCounts<CandidateLists>::type;
-
-// --- Select next candidate: first head with tail-occurrence count == 0 ---
-
-template <typename L, typename Counts>
-struct TryListHelper;
-
-template <typename Counts>
-struct TryListHelper<TypeList<>, Counts> {
-    using type = void;
-    static constexpr bool found = false;
-};
-
-template <typename List, typename... Rest, typename Counts>
-struct TryListHelper<TypeList<List, Rest...>, Counts> {
-private:
-    using Head = Head_t<List>;
-    static constexpr int count = Get_v<Counts, Head, 0>;
-    using RestResult = TryListHelper<TypeList<Rest...>, Counts>;
-public:
-    using type = std::conditional_t<(count == 0), Head, typename RestResult::type>;
-    static constexpr bool found = (count == 0) || RestResult::found;
-};
-
-template <typename Lists, typename Counts>
-struct SelectNext {
-private:
-    using Result = TryListHelper<Lists, Counts>;
-public:
-    using type = typename Result::type;
-    static constexpr bool found = Result::found;
-
-    static_assert(found,
-        "C3 merge failed: No valid candidate found. "
-        "This indicates a violation of linearization constraints. "
-        "Check that your inheritance hierarchy does not have conflicting "
-        "local precedence orders or violates monotonicity.");
-};
-
-template <typename Lists, typename Counts>
-using SelectNext_t = typename SelectNext<Lists, Counts>::type;
-
-// --- Remove selected from all lists, update counts for new heads ---
-
-template <bool Matches, bool TailNotEmpty, typename T>
-struct GetModifiedHead {
-    using type = TypeList<>;
-};
-
-template <typename T>
-struct GetModifiedHead<true, true, T> {
-    using type = TypeList<Head_t<T>>;
-};
-
-template <typename Selected, typename L>
-struct RemoveFromListAndTrackHelper;
-
-template <typename Selected>
-struct RemoveFromListAndTrackHelper<Selected, TypeList<>> {
-    using lists = TypeList<>;
-    using modified = TypeList<>;
-};
-
-template <typename Selected, typename List, typename... Rest>
-struct RemoveFromListAndTrackHelper<Selected, TypeList<List, Rest...>> {
-private:
-    using H = Head_t<List>;
-    using T = Tail_t<List>;
-    static constexpr bool matches = std::is_same_v<H, Selected>;
-    using RestResult = RemoveFromListAndTrackHelper<Selected, TypeList<Rest...>>;
-    using ThisModified = typename GetModifiedHead<matches, !IsEmpty_v<T>, T>::type;
-public:
-    using lists = Cons_t<
-        std::conditional_t<matches, T, List>,
-        typename RestResult::lists
-    >;
-    using modified = Concat_t<ThisModified, typename RestResult::modified>;
-};
-
-template <typename ModifiedHeads, typename Counts>
-struct DecrementModifiedHelper;
-
-template <typename Counts>
-struct DecrementModifiedHelper<TypeList<>, Counts> {
-    using type = Counts;
-};
-
-template <typename H, typename... Rest, typename Counts>
-struct DecrementModifiedHelper<TypeList<H, Rest...>, Counts> {
-    using type = typename DecrementModifiedHelper<
-        TypeList<Rest...>,
-        Decrement_t<Counts, H>
-    >::type;
-};
-
-template <typename Selected, typename Lists, typename Counts>
-struct RemoveSelectedAndUpdate {
-private:
-    using RemovalResult = RemoveFromListAndTrackHelper<Selected, Lists>;
-    using ListsAfterRemoval = typename RemovalResult::lists;
-    using ModifiedHeads = typename RemovalResult::modified;
-    using UpdatedCounts = typename DecrementModifiedHelper<ModifiedHeads, Counts>::type;
-public:
-    using lists = ListsAfterRemoval;
-    using counts = UpdatedCounts;
-};
-
-// --- Main C3 merge loop ---
-
-template <typename Result, typename Lists, typename Counts>
-struct MergeLoopHelper {
-private:
-    using CleanedLists = RemoveNulls_t<Lists>;
-
-    struct EmptyCase {
-        using type = Result;
-    };
-
-    struct NonEmptyCase {
-    private:
-        using Next = SelectNext_t<CleanedLists, Counts>;
-        using Updated = RemoveSelectedAndUpdate<Next, CleanedLists, Counts>;
-        using NextResult = Append_t<Result, Next>;
-    public:
-        using type = typename MergeLoopHelper<NextResult, typename Updated::lists, typename Updated::counts>::type;
-    };
-
-public:
-    using type = typename std::conditional_t<
-        IsEmpty_v<CleanedLists>,
-        EmptyCase,
-        NonEmptyCase
-    >::type;
-};
-
-template <typename CandidateLists>
-struct C3Merge {
-private:
-    using CleanedLists = RemoveNulls_t<CandidateLists>;
-    using InitialCounts = BuildAncestorCounts_t<CleanedLists>;
-public:
-    using type = typename MergeLoopHelper<TypeList<>, CleanedLists, InitialCounts>::type;
-};
-
-template <typename CandidateLists>
-using C3Merge_t = typename C3Merge<CandidateLists>::type;
-
-// ============================================================================
-// Suffix List Operations (C4 extension)
-// ============================================================================
-//
-// C4 requires suffix specifications to form a total order.  Given any two
-// suffix specifications, one's precedence list must be a suffix of the other's.
-
-// --- IsSuffixOf: check if List2 is a suffix of List1 ---
-
-template <typename L1, typename L2>
-struct IsPrefixOfHelper;
-
-template <>
-struct IsPrefixOfHelper<TypeList<>, TypeList<>> {
-    static constexpr bool value = true;
-};
-
-template <typename H2, typename... T2>
-struct IsPrefixOfHelper<TypeList<>, TypeList<H2, T2...>> {
-    static constexpr bool value = false;
-};
-
-template <typename H1, typename... T1>
-struct IsPrefixOfHelper<TypeList<H1, T1...>, TypeList<>> {
-    static constexpr bool value = true;
-};
-
-template <typename H1, typename... T1, typename H2, typename... T2>
-struct IsPrefixOfHelper<TypeList<H1, T1...>, TypeList<H2, T2...>> {
-    static constexpr bool value =
-        std::is_same_v<H1, H2> &&
-        IsPrefixOfHelper<TypeList<T1...>, TypeList<T2...>>::value;
-};
-
-template <typename List1, typename List2>
-struct IsSuffixOf {
-private:
-    using Rev1 = Reverse_t<List1>;
-    using Rev2 = Reverse_t<List2>;
-public:
-    static constexpr bool value = IsPrefixOfHelper<Rev1, Rev2>::value;
-};
-
-template <typename List1, typename List2>
-inline constexpr bool IsSuffixOf_v = IsSuffixOf<List1, List2>::value;
-
-// --- AreDisjoint: no common elements ---
-
-template <typename List1, typename List2>
-struct AreDisjoint {
-private:
-    template <typename L1, typename L2>
-    struct HasCommonElement;
-
-    template <typename L2>
-    struct HasCommonElement<TypeList<>, L2> {
-        static constexpr bool value = false;
-    };
-
-    template <typename H, typename... T, typename L2>
-    struct HasCommonElement<TypeList<H, T...>, L2> {
-        static constexpr bool value = Contains_v<L2, H> || HasCommonElement<TypeList<T...>, L2>::value;
-    };
-
-public:
-    static constexpr bool value = !HasCommonElement<List1, List2>::value;
-};
-
-template <typename List1, typename List2>
-inline constexpr bool AreDisjoint_v = AreDisjoint<List1, List2>::value;
-
-// --- MergeTwoSuffixes: merge two suffix lists, asserting compatibility ---
-
-template <typename Suffix1, typename Suffix2>
-struct MergeTwoSuffixes {
-private:
-    static constexpr bool disjoint          = AreDisjoint_v<Suffix1, Suffix2>;
-    static constexpr bool s1_suffix_of_s2   = IsSuffixOf_v<Suffix2, Suffix1>;
-    static constexpr bool s2_suffix_of_s1   = IsSuffixOf_v<Suffix1, Suffix2>;
-    static constexpr bool compatible = disjoint || s1_suffix_of_s2 || s2_suffix_of_s1;
-
-public:
-    static_assert(compatible,
-        "Suffix incompatibility detected:\n"
-        "  The suffix specifications in your hierarchy are not in total order.\n"
-        "  The suffix lists share elements but neither is a suffix of the other.\n"
-        "  This violates the suffix property required by C4.\n"
-        "  Check which specifications are marked as suffix and their inheritance.");
-
+template<typename S1, typename S2, typename Traits>
+struct merge_two_suffixes {
     using type = std::conditional_t<
-        disjoint,
-        Concat_t<Suffix1, Suffix2>,
-        std::conditional_t<(Suffix1::size >= Suffix2::size), Suffix1, Suffix2>
-    >;
-};
-
-template <typename Suffix1, typename Suffix2>
-using MergeTwoSuffixes_t = typename MergeTwoSuffixes<Suffix1, Suffix2>::type;
-
-// --- MergeSuffixLists: fold-merge a list of suffix lists ---
-
-template <typename SuffixLists>
-struct MergeSuffixLists {
-private:
-    template <typename Acc, typename S>
-    struct Merge2 {
-        using type = MergeTwoSuffixes_t<Acc, S>;
-    };
-public:
-    using type = FoldLeft_t<Merge2, TypeList<>, SuffixLists>;
-};
-
-template <typename SuffixLists>
-using MergeSuffixLists_t = typename MergeSuffixLists<SuffixLists>::type;
-
-// --- SplitPrefixSuffix: split a precedence list at first suffix spec ---
-
-template <typename PrecedenceList>
-struct SplitPrefixSuffix {
-private:
-    template <typename T>
-    struct IsSuffixPred {
-        static constexpr bool value = IsInternalSuffixSpec_v<T>;
-    };
-
-    using SplitResult = AppendReverseUntil<IsSuffixPred, PrecedenceList, TypeList<>>;
-
-public:
-    using prefix = Reverse_t<typename SplitResult::result>;
-    using suffix = typename SplitResult::remaining;
-};
-
-// --- SplitAllLists: split multiple precedence lists ---
-
-template <typename PrecedenceListList>
-struct SplitAllLists {
-private:
-    template <typename PL>
-    struct SplitOne {
-        using type = SplitPrefixSuffix<PL>;
-    };
-
-    using splits = Map_t<SplitOne, PrecedenceListList>;
-
-    template <typename SR> struct GetPrefix { using type = typename SR::prefix; };
-    template <typename SR> struct GetSuffix { using type = typename SR::suffix; };
-
-public:
-    using prefixes = Map_t<GetPrefix, splits>;
-    using suffixes = Map_t<GetSuffix, splits>;
-};
-
-// --- RemoveSuffixRedundancy: strip suffix elements from candidate lists ---
-
-template <typename CandidateLists, typename MergedSuffix>
-struct RemoveSuffixRedundancy {
-private:
-    template <typename Suffix, size_t Pos>
-    struct BuildSuffixIndex;
-
-    template <size_t Pos>
-    struct BuildSuffixIndex<TypeList<>, Pos> {
-        using type = TypeMap<>;
-    };
-
-    template <typename S, typename... Rest, size_t Pos>
-    struct BuildSuffixIndex<TypeList<S, Rest...>, Pos> {
-        using type = Insert_t<
-            typename BuildSuffixIndex<TypeList<Rest...>, Pos + 1>::type,
-            S, Pos
-        >;
-    };
-
-    using SuffixIndex = typename BuildSuffixIndex<MergedSuffix, 0>::type;
-
-    template <typename List>
-    struct CleanOne {
-    private:
-        template <typename L, int LastPos>
-        struct RemoveFromEnd;
-
-        template <int LastPos>
-        struct RemoveFromEnd<TypeList<>, LastPos> {
-            using type = TypeList<>;
-        };
-
-        template <typename H, typename... T, int LastPos>
-        struct RemoveFromEnd<TypeList<H, T...>, LastPos> {
-        private:
-            static constexpr int pos       = Get_v<SuffixIndex, H, -1>;
-            static constexpr bool in_suffix = (pos >= 0);
-            static constexpr bool in_order  = (pos > LastPos) || (LastPos < 0);
-            using RestResult = RemoveFromEnd<TypeList<T...>, pos>;
-
-        public:
-            using type = std::conditional_t<
-                (in_suffix && in_order),
-                typename RestResult::type,
-                TypeList<H, T...>
-            >;
-
-            static_assert(!in_suffix || in_order,
-                "Suffix element out of order: an ancestor appears in the candidate list "
-                "but its position relative to the merged suffix is inconsistent. "
-                "This violates the suffix property.");
-        };
-
-    public:
-        using type = typename RemoveFromEnd<List, -1>::type;
-    };
-
-public:
-    using type = Map_t<CleanOne, CandidateLists>;
-};
-
-template <typename CandidateLists, typename MergedSuffix>
-using RemoveSuffixRedundancy_t = typename RemoveSuffixRedundancy<CandidateLists, MergedSuffix>::type;
-
-// ============================================================================
-// C4 Linearization Algorithm
-// ============================================================================
-//
-// Computes the class precedence list (CPL) for a specification, extending C3 with
-// suffix specification support.
-//
-// For each specification, based on number of parents:
-//   0 parents: trivial list [Spec]
-//   1 parent:  prepend Spec to parent's list
-//   N parents: (full C4)
-//     1. Extract parent precedence lists
-//     2. Split each into prefix (infix specs) and suffix (suffix specs)
-//     3. Merge all suffix lists (must form total order)
-//     4. Append local order (parents) to prefix candidate lists
-//     5. Remove redundant suffix elements from candidates
-//     6. C3-merge the cleaned prefix candidates
-//     7. Concatenate merged prefix + merged suffix
-//     8. Prepend Spec
-
-// Forward declaration for mutual recursion
-template <typename Spec>
-struct C4Linearize;
-
-// --- 0-parent case ---
-template <typename Spec, typename Parents>
-struct ComputeImpl0 {
-    using precedence_list = TypeList<Spec>;
-    using most_specific_suffix = std::conditional_t<IsInternalSuffixSpec_v<Spec>, Spec, void>;
-};
-
-// --- 1-parent case ---
-template <typename Spec, typename Parents>
-struct ComputeImpl1 {
-private:
-    using Parent = Head_t<Parents>;
-    using ParentPL = typename C4Linearize<Parent>::precedence_list;
-    using ParentSuffix = typename C4Linearize<Parent>::most_specific_suffix;
-public:
-    using precedence_list = Cons_t<Spec, ParentPL>;
-    using most_specific_suffix = std::conditional_t<IsInternalSuffixSpec_v<Spec>, Spec, ParentSuffix>;
-};
-
-// Helper: safe Head_t on possibly-empty list (returns void)
-template <typename List, bool IsEmpty>
-struct GetMSSFromListHelper {
-    using type = void;
-};
-
-template <typename List>
-struct GetMSSFromListHelper<List, false> {
-    using type = Head_t<List>;
-};
-
-// --- N-parent case (full C4) ---
-template <typename Spec, typename Parents>
-struct ComputeImplN {
-private:
-    template <typename P>
-    struct GetPL {
-        using type = typename C4Linearize<P>::precedence_list;
-    };
-
-    using ParentPLs = Map_t<GetPL, Parents>;
-    using Splits = SplitAllLists<ParentPLs>;
-    using MergedSuffix = MergeSuffixLists_t<typename Splits::suffixes>;
-    using ParentGroups = typename Spec::__c4__parent_groups;
-    using CandidatesWithLocal = Concat_t<typename Splits::prefixes, ParentGroups>;
-    using CleanedCandidates = RemoveSuffixRedundancy_t<CandidatesWithLocal, MergedSuffix>;
-    using MergedPrefix = C3Merge_t<CleanedCandidates>;
-    using Joined = Concat_t<MergedPrefix, MergedSuffix>;
-
-    using MSS = std::conditional_t<
-        IsInternalSuffixSpec_v<Spec>,
-        Spec,
-        typename GetMSSFromListHelper<MergedSuffix, IsEmpty_v<MergedSuffix>>::type
-    >;
-
-public:
-    using precedence_list = Cons_t<Spec, Joined>;
-    using most_specific_suffix = MSS;
-};
-
-// --- Main C4Linearize entry ---
-
-template <typename Spec>
-struct C4Linearize {
-private:
-    using Parents = typename Spec::c4_parents_type;
-    static constexpr size_t num_parents = Parents::size;
-
-    static_assert(!HasCycle_v<Spec>,
-        "Circular dependency detected in specification");
-
-    using Result = std::conditional_t<
-        num_parents == 0,
-        ComputeImpl0<Spec, Parents>,
+        suffix_reaches_v<S1, S2, Traits>,
+        S1,
         std::conditional_t<
-            num_parents == 1,
-            ComputeImpl1<Spec, Parents>,
-            ComputeImplN<Spec, Parents>
-        >
-    >;
-
-public:
-    using precedence_list = typename Result::precedence_list;
-    using most_specific_suffix = typename Result::most_specific_suffix;
+            suffix_reaches_v<S2, S1, Traits>,
+            S2,
+            typename incompatible_suffixes<S1, S2, Traits>::type>>;
 };
 
-// ============================================================================
-// Public API
-// ============================================================================
+template<typename S1, typename S2, typename Traits>
+using merge_two_suffixes_t = typename merge_two_suffixes<S1, S2, Traits>::type;
 
-template <typename Spec>
-using GetPrecedenceList_t = typename C4Linearize<Spec>::precedence_list;
+template<typename ParentList, typename Traits>
+struct merge_parent_suffixes;
+
+template<typename Traits>
+struct merge_parent_suffixes<type_list<>, Traits> {
+    using type = no_suffix;
+};
+
+template<typename Parent, typename... Rest, typename Traits>
+struct merge_parent_suffixes<type_list<Parent, Rest...>, Traits> {
+private:
+    using parent_suffix = most_specific_suffix_t<Parent, Traits>;
+    using rest_suffix = typename merge_parent_suffixes<type_list<Rest...>, Traits>::type;
+public:
+    using type = merge_two_suffixes_t<parent_suffix, rest_suffix, Traits>;
+};
+
+template<typename ParentList, typename Traits>
+using merge_parent_suffixes_t = typename merge_parent_suffixes<ParentList, Traits>::type;
+
+// ----------------------------------------------------------------------------
+// Candidate list construction for C3 merge.
+// ----------------------------------------------------------------------------
+
+template<typename Parents, typename Traits>
+struct parent_precedence_lists;
+
+template<typename Traits>
+struct parent_precedence_lists<type_list<>, Traits> {
+    using type = type_list<>;
+};
+
+template<typename Parent, typename... Rest, typename Traits>
+struct parent_precedence_lists<type_list<Parent, Rest...>, Traits> {
+    using type = cons_t<
+        precedence_list_t<Parent, Traits>,
+        typename parent_precedence_lists<type_list<Rest...>, Traits>::type>;
+};
+
+template<typename Parents, typename Traits>
+using parent_precedence_lists_t = typename parent_precedence_lists<Parents, Traits>::type;
+
+// ----------------------------------------------------------------------------
+// C3 merge.
+// ----------------------------------------------------------------------------
+
+template<typename Candidate, typename Lists>
+struct appears_in_any_tail;
+
+template<typename Candidate>
+struct appears_in_any_tail<Candidate, type_list<>> : std::false_type {};
+
+template<typename Candidate, typename Head, typename... Tail, typename... RestLists>
+struct appears_in_any_tail<Candidate, type_list<type_list<Head, Tail...>, RestLists...>>
+    : std::conditional_t<
+          contains_v<type_list<Tail...>, Candidate>,
+          std::true_type,
+          appears_in_any_tail<Candidate, type_list<RestLists...>>> {};
+
+template<typename Candidate, typename... RestLists>
+struct appears_in_any_tail<Candidate, type_list<type_list<>, RestLists...>>
+    : appears_in_any_tail<Candidate, type_list<RestLists...>> {};
+
+template<typename Lists>
+struct select_candidate;
+
+struct no_candidate {};
+
+template<>
+struct select_candidate<type_list<>> {
+    using type = no_candidate;
+};
+
+template<typename Head, typename... Tail, typename... RestLists>
+struct select_candidate<type_list<type_list<Head, Tail...>, RestLists...>> {
+    using type = std::conditional_t<
+        appears_in_any_tail<Head, type_list<type_list<Head, Tail...>, RestLists...>>::value,
+        typename select_candidate<type_list<RestLists...>>::type,
+        Head>;
+};
+
+template<typename... RestLists>
+struct select_candidate<type_list<type_list<>, RestLists...>>
+    : select_candidate<type_list<RestLists...>> {};
+
+template<typename Lists>
+using select_candidate_t = typename select_candidate<Lists>::type;
+
+template<typename List, typename Next>
+struct pop_if_head;
+
+template<typename Next>
+struct pop_if_head<type_list<>, Next> {
+    using type = type_list<>;
+};
+
+template<typename Next, typename... Rest>
+struct pop_if_head<type_list<Next, Rest...>, Next> {
+    using type = type_list<Rest...>;
+};
+
+template<typename Head, typename... Rest, typename Next>
+struct pop_if_head<type_list<Head, Rest...>, Next> {
+    using type = type_list<Head, Rest...>;
+};
+
+template<typename List, typename Next>
+using pop_if_head_t = typename pop_if_head<List, Next>::type;
+
+template<typename Lists, typename Next>
+struct remove_next_from_lists;
+
+template<typename Next>
+struct remove_next_from_lists<type_list<>, Next> {
+    using type = type_list<>;
+};
+
+template<typename FirstList, typename... RestLists, typename Next>
+struct remove_next_from_lists<type_list<FirstList, RestLists...>, Next> {
+private:
+    using first = pop_if_head_t<FirstList, Next>;
+    using rest = typename remove_next_from_lists<type_list<RestLists...>, Next>::type;
+public:
+    using type = std::conditional_t<is_empty_v<first>, rest, cons_t<first, rest>>;
+};
+
+template<typename Lists, typename Next>
+using remove_next_from_lists_t = typename remove_next_from_lists<Lists, Next>::type;
+
+template<typename Candidates, typename Acc>
+struct c3_merge_loop;
+
+template<typename Acc>
+struct c3_merge_loop<type_list<>, Acc> {
+    using type = reverse_t<Acc>;
+};
+
+template<typename OnlyList, typename Acc>
+struct c3_merge_loop<type_list<OnlyList>, Acc> {
+    using type = concat_t<reverse_t<Acc>, OnlyList>;
+};
+
+template<typename FirstList, typename SecondList, typename... RestLists, typename Acc>
+struct c3_merge_loop<type_list<FirstList, SecondList, RestLists...>, Acc> {
+private:
+    using candidates = type_list<FirstList, SecondList, RestLists...>;
+    using next = select_candidate_t<candidates>;
+    using remaining = remove_next_from_lists_t<candidates, next>;
+public:
+    using type = typename c3_merge_loop<remaining, cons_t<next, Acc>>::type;
+};
+
+template<typename Candidates>
+using c3_merge_t = typename c3_merge_loop<remove_nulls_t<Candidates>, type_list<>>::type;
+
+// ----------------------------------------------------------------------------
+// Main linearization.
+// ----------------------------------------------------------------------------
+
+template<typename Node, typename Traits>
+struct linearize {
+    static_assert(!has_cycle_v<Node, Traits>,
+                  "C4 linearization failed: parent graph contains a cycle");
+
+private:
+    using parent_orders = remove_nulls_t<typename Traits::template parent_orders<Node>>;
+    using parents = unique_direct_parents_t<parent_orders>;
+    using parent_plists = parent_precedence_lists_t<parents, Traits>;
+    using candidates = concat_t<parent_plists, parent_orders>;
+
+public:
+    using inherited_suffix = merge_parent_suffixes_t<parents, Traits>;
+    using most_specific_suffix = std::conditional_t<
+        is_suffix_node_v<Node, Traits>, Node, inherited_suffix>;
+
+    using precedence_list = cons_t<Node, c3_merge_t<candidates>>;
+};
+
+template<typename Node, typename Traits>
+using linearize_t = typename linearize<Node, Traits>::precedence_list;
 
 } // namespace c4

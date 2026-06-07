@@ -18,8 +18,6 @@ Inconsistent inheritance graphs are rejected at compile time.
 
 template<class Self, class Super>
 struct Object : Super {
-  using c4_parents = c4::parents<>;
-
   void save() { std::cout << "Object::save\n"; }
 };
 
@@ -101,8 +99,9 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
    whose class precedence list is guaranteed to be the suffix of that of any descendent,
    enabling all the usual optimizations associated with single inheritance:
    fixed-offset fields, fixed-offset dynamic method dispatch, etc.
-   C++ developers can enjoy their zero-cost abstractions where needed, yet also
-   use more expressive virtual dynamic dispatch where necessary.
+   C++ developers can keep a single-inheritance tail where layout and dispatch
+   predictability matter, while using cooperative multiple inheritance above that
+   tail where expressiveness matters.
 
 4. **Compile-time resolution of inheritance**:
    using C++ templates, we ensure that all inheritance computations happen at compile-time;
@@ -122,8 +121,8 @@ However, the public C++ API may still change.
 I (François-René Rideau) designed and implemented this code as part of Gerbil Scheme.
 Then I used Claude Opus 4.5 from Anthropic to translate it to C++ templates.
 Claude one-shotted a working but sloppy solution from specification. Finally,
-I rewrote and simplified it into half as much code, with a nicer and more powerful API
-(again with some help from Claude).
+I rewrote and simplified it into half as much code, with a nicer and more powerful API,
+again with some help from Claude. ChatGPT helped me make clean it up further.
 
 I also invented the word "flavorful", after Flavors (1979), the first Object System
 that did multiple inheritance the right way, which paved the way to CLOS
@@ -150,14 +149,14 @@ mkdir -p build
 g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
 ```
 
-| File | Demonstrates |
-|------|-------------|
-| `examples/diamond.cpp` | Basic diamond inheritance; canonical C4 usage with `C4N<>` |
-| `examples/interface.cpp` | Shows how to inherit from an interface or abstract class |
-| `examples/suffix.cpp` | Suffix specs (`c4_suffix = true`), fixed-tail CPL placement |
-| `examples/multiple_parent_lists.cpp` | Multiple independent parent lists: `c4::parents<c4::order<A,B>, c4::order<C>>` |
-| `examples/mixin_names.hpp` | `MixinNames` base and `C4N<Spec>` alias — used by examples and tests that need `collectNames` |
-| `examples/counting.hpp` | `Counting` mixin tracking nodes/edges visited; illustrates stateful mixins |
+The examples in `examples/` are numbered in suggested reading order:
+
+- `01_diamond.cpp`: the basic C4 diamond; shared ancestors appear once in the `Super` chain.
+- `02_wrapping.cpp`: cooperative before/after method wrapping around `Super::method()`.
+- `03_suffix.cpp`: suffix classes and the single-inheritance tail.
+- `04_parent_orders.cpp`: advanced multiple parent-order declarations.
+- `05_interface.cpp`: using C4 mixins while programming against ordinary C++ interfaces.
+- `06_counting.cpp`: a legacy counting example in the mixin-literature style.
 
 ## Suffix Classes
 
@@ -174,7 +173,24 @@ structure. See also “struct” in Lisp (that have single inheritance) vs “cl
 have multiple inheritance) and “mixin” (which is an abstract class designed for use in a multiple
 inheritance context, except the word “mixin” pre-dates the words “abstract class”).
 
-See examples in `examples/suffix.cpp`.
+In the generated C++ type, this gives suffix classes a linear tail: each suffix class
+has a single suffix superclass. This preserves the layout and dispatch opportunities
+associated with ordinary single inheritance inside that tail. When suffix classes do not
+depend on the CRTP `Self` parameter, compilers and linkers may also be able to fold identical
+generated code, but C++ type identity does not require this.
+
+See examples in [`examples/suffix.cpp`](examples/suffix.cpp).
+
+## Multiple Parent Lists
+
+Instead of parents being in a total order with `using c4_parents = c4::parents<A, B, C>;`
+you can specify parents in a partial order, with the following,
+where each of the `order<...>` specifies a total order:
+```cpp
+using c4_parents = c4::parent_orders<c4::order<A, B>, c4::order<C, D>>;`
+```
+
+See examples in [`examples/multiple_parent_lists.cpp`](examples/multiple_parent_lists.cpp).
 
 ## Architecture
 
@@ -182,9 +198,9 @@ See examples in `examples/suffix.cpp`.
 include/c4/
 ├── mixins.hpp        # Main header (include this)
 ├── type_list.hpp     # Compile-time list operations
-├── type_map.hpp      # Compile-time associative map (ancestor counting)
-├── dag.hpp           # Cycle detection
-└── linearize.hpp     # C4 algorithm (included by mixins.hpp)
+├── type_map.hpp      # Compile-time associative map
+├── cycle_check.hpp   # Diagnostic-only cycle checker
+└── linearize.hpp     # C4 linearization algorithm
 ```
 
 ### Type-Level Infrastructure

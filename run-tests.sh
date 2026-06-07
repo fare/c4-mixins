@@ -1,11 +1,40 @@
-#!/bin/sh -ex
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Check that the examples compile and run
-for i in interface suffix diamond multiple_parent_lists ; do
-  g++ -std=c++20 -Iinclude examples/${i}.cpp   -o build/${i}   && build/${i} || return 1
+CXX="${CXX:-c++}"
+CXXFLAGS="${CXXFLAGS:--std=c++20 -Wall -Wextra -pedantic -Iinclude}"
+
+BUILD_DIR="${BUILD_DIR:-build}"
+TEST_BUILD_DIR="$BUILD_DIR/tests"
+EXAMPLE_BUILD_DIR="$BUILD_DIR/examples"
+
+mkdir -p "$TEST_BUILD_DIR" "$EXAMPLE_BUILD_DIR"
+
+echo "CXX=$CXX"
+echo "CXXFLAGS=$CXXFLAGS"
+echo
+
+echo "== Building and running tests =="
+for src in tests/test_*.cpp; do
+  name="$(basename "$src" .cpp)"
+  exe="$TEST_BUILD_DIR/$name"
+
+  echo "  $name"
+  "$CXX" $CXXFLAGS "$src" -o "$exe"
+  "$exe"
+  echo ; echo ; echo
 done
 
-# Check that the tests pass
-for i in test_c3_examples test_c4_suffix test_error_detection test_spec_pattern ; do
-  g++ -std=c++20 -Iinclude tests/${i}.cpp    -o build/${i}    && build/${i} || return 1
+echo
+echo "== Building examples =="
+for src in examples/[0-9][0-9]_*.cpp; do
+  name="$(basename "$src" .cpp)"
+  exe="$EXAMPLE_BUILD_DIR/$name"
+
+  echo "  $name"
+  "$CXX" $CXXFLAGS "$src" -o "$exe"
+  echo ; echo ; echo
 done
+
+echo
+echo "ok"

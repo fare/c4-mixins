@@ -1,239 +1,212 @@
 #pragma once
 
-// C4: Flavorful Multiple Inheritance in C++
-// Reference: Smaragdakis & Batory, "Mixin-Based Programming in C++" (2000)
-//
-// This is the only header users need to include.
-//
-// Specs are binary templates: template <typename Self, typename Super> struct Foo : Super
-//   Self  = the final composed concrete class (for self-reference, CRTP-style)
-//   Super = next class in the mixin chain (call Super::method() for cooperation)
-
-#include <type_traits>
-#include <cstddef>
-
-// ============================================================================
-// Metaprogramming Infrastructure
-// ============================================================================
-
-#include "type_list.hpp"
-#include "type_map.hpp"
-#include "dag.hpp"
-
-namespace c4 {
-
-// Make TypeList available in the c4 namespace for c4_parents declarations
-using meta::TypeList;
-
-// ============================================================================
-// Mixin - Bottom of every composition chain
-// ============================================================================
-
-struct Mixin {
-    Mixin() = default;
-    virtual ~Mixin() = default;
-};
-
-// ============================================================================
-// SpecList - Declare a spec's parents
-// ============================================================================
-// Specs are binary templates: template<typename Self, typename Super>
-
-template <template<typename, typename> class... Specs>
-struct SpecList {
-    static constexpr size_t size = sizeof...(Specs);
-};
-
-// ============================================================================
-// SpecHelper - Internal metadata wrapper
-// ============================================================================
-// Used internally by the C4 algorithm; users do not interact with this type.
-
-template <template<typename, typename> class Spec,
-          typename FlatParents, typename ParentGroups, bool IsSuffix>
-struct SpecHelper : public Mixin {
-    template <typename Self, typename Base>
-    using __c4__apply_mixin = Spec<Self, Base>;
-
-    using c4_parents_type  = FlatParents;    // flat TypeList<SpecHelper<...>,...>
-    using __c4__parent_groups = ParentGroups;   // TypeList<TypeList<SpecHelper<...>,...>,...>
-    static constexpr bool c4_suffix = IsSuffix;
-};
-
-// ============================================================================
-// Convert c4_parents (TypeList<SpecList<...>,...>) to internal representation
-// ============================================================================
-
-// Forward declaration
-template <template<typename, typename> class Spec>
-struct MakeSpecInternal;
-
-// Convert one SpecList<A,B,...> to TypeList<SpecHelper<A>, SpecHelper<B>, ...>
-template <typename SL>
-struct SpecListToTypeList;
-
-template <>
-struct SpecListToTypeList<SpecList<>> {
-    using type = meta::TypeList<>;
-};
-
-template <template<typename, typename> class S, template<typename, typename> class... Rest>
-struct SpecListToTypeList<SpecList<S, Rest...>> {
-    using type = meta::Cons_t<
-        typename MakeSpecInternal<S>::type,
-        typename SpecListToTypeList<SpecList<Rest...>>::type
-    >;
-};
-
-template <typename SL>
-using SpecListToTypeList_t = typename SpecListToTypeList<SL>::type;
-
-// Convert TypeList<SpecList<A,B>, SpecList<C>,...> to:
-//   groups = TypeList<TypeList<SpecHelper<A>,SpecHelper<B>>, TypeList<SpecHelper<C>>, ...>
-//   flat   = TypeList<SpecHelper<A>, SpecHelper<B>, SpecHelper<C>, ...>
-template <typename ParentsDecl>
-struct ParentGroupsToInternal;
-
-template <>
-struct ParentGroupsToInternal<meta::TypeList<>> {
-    using groups = meta::TypeList<>;
-    using flat   = meta::TypeList<>;
-};
-
-template <typename FirstSL, typename... RestSLs>
-struct ParentGroupsToInternal<meta::TypeList<FirstSL, RestSLs...>> {
-private:
-    using ThisGroup = SpecListToTypeList_t<FirstSL>;
-    using RestConverted = ParentGroupsToInternal<meta::TypeList<RestSLs...>>;
-public:
-    using groups = meta::Cons_t<ThisGroup, typename RestConverted::groups>;
-    using flat   = meta::Concat_t<ThisGroup, typename RestConverted::flat>;
-};
-
-// Instantiate Spec<Mixin, Mixin> as a sentinel to read its metadata.
-// Self=Mixin and Super=Mixin are placeholders — only c4_parents and
-// c4_suffix are read, and those must not depend on Self or Super.
-template <template<typename, typename> class Spec>
-struct MakeSpecInternal {
-private:
-    using Instance    = Spec<Mixin, Mixin>;
-    using ParentsDecl = typename Instance::c4_parents;
-    using Converted   = ParentGroupsToInternal<ParentsDecl>;
-public:
-    using type = SpecHelper<Spec,
-                            typename Converted::flat,
-                            typename Converted::groups,
-                            Instance::c4_suffix>;
-};
-
-template <template<typename, typename> class Spec>
-using MakeSpecInternal_t = typename MakeSpecInternal<Spec>::type;
-
-// ============================================================================
-// Spec Queries
-// ============================================================================
-
-// Check if an internal SpecHelper is a suffix spec
-template <typename Spec>
-struct IsInternalSuffixSpec : std::false_type {};
-
-template <template<typename, typename> class M, typename FP, typename PG>
-struct IsInternalSuffixSpec<SpecHelper<M, FP, PG, true>> : std::true_type {};
-
-template <typename Spec>
-inline constexpr bool IsInternalSuffixSpec_v = IsInternalSuffixSpec<Spec>::value;
-
-} // namespace c4
-
-// ============================================================================
-// Algorithm
-// ============================================================================
-
-#include "linearize.hpp"
+#include <c4/type_list.hpp>
+#include <c4/linearize.hpp>
 
 namespace c4 {
 
 // ============================================================================
-// High-Level Composition API
+// Public parent declarations
 // ============================================================================
+//
+// Common case: one local parent order.
+//
+//   using c4_parents = c4::parents<A, B, C>;
+//
+// Advanced case: several local parent orders.
+//
+//   using c4_parents = c4::parent_orders<
+//     c4::order<A, B>,
+//     c4::order<C, D>
+//   >;
 
-// Chain mixins from most general to most specific (left-fold over reversed CPL).
-// The CPL is [MostSpecific, ..., MostGeneral]; we reverse it and left-fold so
-// the result is MostSpecific<Self, ...<MostGeneral<Self, Base>>>.
-// Self is the final concrete type and is passed to every mixin in the chain.
+template<template<typename, typename> class... Specs>
+struct order {
+    // The ordered mixin specs are preserved as template arguments to order.
+    // mixin_linearization_traits recovers them by partial specialization.
+};
 
-template <typename Self, typename ReversedCPL, typename Base>
-struct ChainMixins;
+template<typename... Orders>
+using parent_orders = type_list<Orders...>;
 
-template <typename Self, typename Base>
-struct ChainMixins<Self, meta::TypeList<>, Base> {
+template<template<typename, typename> class... Specs>
+using parents = parent_orders<order<Specs...>>;
+
+// ============================================================================
+// mixin - default bottom base and default C4 declarations
+// ============================================================================
+//
+// User mixins inherit from their Super parameter. During metadata extraction we
+// pseudo-instantiate each spec as Spec<mixin, mixin>, so omitted declarations are
+// inherited from this base.
+
+struct mixin {
+    using c4_parents = parents<>;
+    static constexpr bool c4_suffix = false;
+};
+
+// ============================================================================
+// spec_info - metadata node for the generic linearizer
+// ============================================================================
+//
+// spec_info<Spec> adapts a user-written mixin template to the node protocol
+// consumed by linearize.hpp. It is not part of the intended user API.
+
+template<template<typename, typename> class Spec>
+struct spec_info : mixin {
+    // Probe the spec with the default C4 mixin base to read inherited protocol
+    // defaults without constructing the final CRTP fixed point.
+    using pseudo_instance = Spec<mixin, mixin>;
+
+    using c4_parents = typename pseudo_instance::c4_parents;
+    static constexpr bool c4_suffix = pseudo_instance::c4_suffix;
+
+    template<typename Self, typename Super>
+    using c4_apply_mixin = Spec<Self, Super>;
+};
+
+// ============================================================================
+// mixin_linearization_traits - adapter for linearize.hpp
+// ============================================================================
+//
+// linearize.hpp expects parent orders as type_list<type_list<Node...>, ...>.
+// User mixins declare c4::parent_orders<c4::order<Spec...>, ...>; this adapter
+// turns those public declarations into spec_info nodes for the generic algorithm.
+
+template<typename Order>
+struct mixin_order_to_nodes;
+
+template<template<typename, typename> class... Specs>
+struct mixin_order_to_nodes<order<Specs...>> {
+    using type = type_list<spec_info<Specs>...>;
+};
+
+template<typename ParentOrders>
+struct mixin_parent_orders_to_nodes;
+
+template<typename... Orders>
+struct mixin_parent_orders_to_nodes<type_list<Orders...>> {
+    using type = type_list<typename mixin_order_to_nodes<Orders>::type...>;
+};
+
+template<typename ParentOrders>
+using mixin_parent_orders_to_nodes_t = typename mixin_parent_orders_to_nodes<ParentOrders>::type;
+
+struct mixin_linearization_traits {
+    template<typename Node>
+    using parent_orders = mixin_parent_orders_to_nodes_t<typename Node::c4_parents>;
+
+    template<typename Node>
+    static constexpr bool suffix = Node::c4_suffix;
+};
+
+template<typename Node>
+using mixin_linearization = linearize<Node, mixin_linearization_traits>;
+
+template<typename Node>
+using mixin_precedence_list_t = typename mixin_linearization<Node>::precedence_list;
+
+template<typename Node>
+using mixin_most_specific_suffix_t = typename mixin_linearization<Node>::most_specific_suffix;
+
+// ============================================================================
+// instantiate - build the concrete C++ inheritance chain
+// ============================================================================
+//
+// The precedence list is [MostSpecific, ..., MostGeneral]. instantiate_chain
+// recursively builds:
+//
+//   MostSpecific<Self, ...<MostGeneral<Self, Base>>>
+//
+// Every mixin, including suffix classes, receives the same final Self type.
+
+template<typename Self, typename Base, typename PrecedenceList>
+struct instantiate_chain;
+
+template<typename Self, typename Base>
+struct instantiate_chain<Self, Base, type_list<>> {
     using type = Base;
 };
 
-// Left-fold: apply S to the running Base, then continue with the new Base.
-template <typename Self, typename S, typename... Rest, typename Base>
-struct ChainMixins<Self, meta::TypeList<S, Rest...>, Base> {
+template<typename Self, typename Base, typename Info, typename... Rest>
+struct instantiate_chain<Self, Base, type_list<Info, Rest...>> {
 private:
-    using ThisLevel = typename S::template __c4__apply_mixin<Self, Base>;
+    using super = typename instantiate_chain<Self, Base, type_list<Rest...>>::type;
+
 public:
-    using type = typename ChainMixins<Self, meta::TypeList<Rest...>, ThisLevel>::type;
+    using type = typename Info::template c4_apply_mixin<Self, super>;
 };
 
-// Forward-declare C4Impl so it can serve as Self before being fully defined.
-// C4Impl IS the concrete composed class; it passes itself as Self to every mixin.
-template <template<typename, typename> class Spec, typename Base = Mixin>
-struct C4Impl;
+// Forward declaration so instantiate<Spec, Base> can be passed as Self while
+// computing its own base chain.
+template<template<typename, typename> class Spec, typename Base = mixin>
+struct instantiate;
 
-// Compute the chain base outside C4Impl — C4Impl<Spec,Base> is incomplete
-// when used here, but only as a type argument, never dereferenced.
-template <template<typename, typename> class Spec, typename Base>
-struct C4ImplChain {
-    using SpecInternal   = MakeSpecInternal_t<Spec>;
-    using PrecedenceList = GetPrecedenceList_t<SpecInternal>;
-    using chain_base     = typename ChainMixins<
-                               C4Impl<Spec, Base>,
-                               meta::Reverse_t<PrecedenceList>,
-                               Base>::type;
+template<template<typename, typename> class Spec, typename Base>
+struct instantiate_base {
+    using node = spec_info<Spec>;
+    using linearization = mixin_linearization<node>;
+    using precedence_list = typename linearization::precedence_list;
+    using inherited_suffix = typename linearization::inherited_suffix;
+    using most_specific_suffix = typename linearization::most_specific_suffix;
+    using chain_base = typename instantiate_chain<
+        instantiate<Spec, Base>,
+        Base,
+        precedence_list>::type;
 };
 
-// C4Impl - the concrete composed class.
-// Inherits from the full mixin chain with Self = C4Impl<Spec, Base>.
-template <template<typename, typename> class Spec, typename Base>
-struct C4Impl : C4ImplChain<Spec, Base>::chain_base {
-    using precedence_list = typename C4ImplChain<Spec, Base>::PrecedenceList;
+template<template<typename, typename> class Spec, typename Base>
+struct instantiate : instantiate_base<Spec, Base>::chain_base {
+    using c4_linearization = typename instantiate_base<Spec, Base>::linearization;
+    using c4_precedence_list = typename instantiate_base<Spec, Base>::precedence_list;
+    using c4_inherited_suffix = typename instantiate_base<Spec, Base>::inherited_suffix;
+    using c4_most_specific_suffix = typename instantiate_base<Spec, Base>::most_specific_suffix;
+
+    using super = typename instantiate_base<Spec, Base>::chain_base;
+    using super::super;
 };
 
-// C4<Spec[, Base]> - compose a spec into a concrete class.
-// Base defaults to Mixin; supply a richer base (e.g. MixinNames) to add protocols.
-template <template<typename, typename> class Spec, typename Base = Mixin>
-using C4 = C4Impl<Spec, Base>;
+// Algorithm-name alias retained while the API is still settling.
+template<template<typename, typename> class Spec, typename Base = mixin>
+using C4 = instantiate<Spec, Base>;
 
 // ============================================================================
-// CPL Membership Checking
+// Precedence-list membership checking
 // ============================================================================
 
-// IsInCPL_v<Derived, Target> - check at compile time whether Target is in
-// the class precedence list of Derived.
-template <template<typename, typename> class Derived, template<typename, typename> class Target>
-struct IsInCPL {
+template<template<typename, typename> class Derived,
+         template<typename, typename> class Target>
+struct is_in_precedence_list {
 private:
-    using DerivedSpec = MakeSpecInternal_t<Derived>;
-    using TargetSpec  = MakeSpecInternal_t<Target>;
-    using CPL         = GetPrecedenceList_t<DerivedSpec>;
+    using derived_node = spec_info<Derived>;
+    using target_node = spec_info<Target>;
+    using precedence_list = mixin_precedence_list_t<derived_node>;
+
 public:
-    static constexpr bool value = meta::Contains_v<CPL, TargetSpec>;
+    static constexpr bool value = contains_v<precedence_list, target_node>;
 };
 
-template <template<typename, typename> class Derived, template<typename, typename> class Target>
-inline constexpr bool IsInCPL_v = IsInCPL<Derived, Target>::value;
+template<template<typename, typename> class Derived,
+         template<typename, typename> class Target>
+inline constexpr bool is_in_precedence_list_v = is_in_precedence_list<Derived, Target>::value;
+
+// Backward-compatible spelling while the library API is still settling.
+template<template<typename, typename> class Derived,
+         template<typename, typename> class Target>
+using is_in_cpl = is_in_precedence_list<Derived, Target>;
+
+template<template<typename, typename> class Derived,
+         template<typename, typename> class Target>
+inline constexpr bool is_in_cpl_v = is_in_precedence_list_v<Derived, Target>;
 
 } // namespace c4
 
 // ============================================================================
-// Version Information
+// Version information
 // ============================================================================
 
-#define C4_VERSION_MAJOR 0
-#define C4_VERSION_MINOR 3
-#define C4_VERSION_PATCH 0
-#define C4_VERSION "0.3.0"
+#define C4_MIXINS_VERSION_MAJOR 0
+#define C4_MIXINS_VERSION_MINOR 3
+#define C4_MIXINS_VERSION_PATCH 0
+#define C4_MIXINS_VERSION "0.3.0"
+

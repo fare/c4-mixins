@@ -1,125 +1,115 @@
 #pragma once
 
-#include "type_list.hpp"
-#include <type_traits>
+#include <c4/type_list.hpp>
 
 namespace c4 {
-namespace meta {
 
 // ============================================================================
-// Pair - Key-value pair for type maps
+// type_map - simple compile-time map from types to values
 // ============================================================================
+//
+// This is a small linear type map used by the C4 linearization algorithm.
+// Keys are types; values are non-type template arguments, typically counts.
+// The representation is deliberately simple: graphs are expected to be small,
+// and readable template instantiations are more valuable here than cleverness.
 
-template <typename Key, auto Value>
-struct Pair {
+template<typename Key, auto Value>
+struct map_entry {
     using key_type = Key;
     static constexpr auto value = Value;
 };
 
-// ============================================================================
-// TypeMap - Compile-time associative map
-// Represented as sorted list of Pairs for efficient lookup
-// ============================================================================
-
-template <typename... Pairs>
-struct TypeMap {
-    using pairs_list = TypeList<Pairs...>;
-    static constexpr size_t size = sizeof...(Pairs);
-};
+template<typename... Entries>
+struct type_map {};
 
 // ============================================================================
-// Get - Retrieve value for key (returns default if not found)
+// map_get - retrieve the value for a key, or Default if absent
 // ============================================================================
 
-template <typename Map, typename Key, auto Default = 0>
-struct Get;
+template<typename Map, typename Key, auto Default = 0>
+struct map_get;
 
-template <typename Key, auto Default>
-struct Get<TypeMap<>, Key, Default> {
+template<typename Key, auto Default>
+struct map_get<type_map<>, Key, Default> {
     static constexpr auto value = Default;
 };
 
-template <typename Key, auto Value, auto Default, typename... Rest>
-struct Get<TypeMap<Pair<Key, Value>, Rest...>, Key, Default> {
+template<typename Key, auto Value, typename... Rest, auto Default>
+struct map_get<type_map<map_entry<Key, Value>, Rest...>, Key, Default> {
     static constexpr auto value = Value;
 };
 
-template <typename Key, typename OtherKey, auto OtherValue, auto Default, typename... Rest>
-struct Get<TypeMap<Pair<OtherKey, OtherValue>, Rest...>, Key, Default> {
-    static constexpr auto value = Get<TypeMap<Rest...>, Key, Default>::value;
-};
+template<typename OtherKey, auto Value, typename... Rest, typename Key, auto Default>
+struct map_get<type_map<map_entry<OtherKey, Value>, Rest...>, Key, Default>
+    : map_get<type_map<Rest...>, Key, Default> {};
 
-template <typename Map, typename Key, auto Default = 0>
-inline constexpr auto Get_v = Get<Map, Key, Default>::value;
+template<typename Map, typename Key, auto Default = 0>
+inline constexpr auto map_get_v = map_get<Map, Key, Default>::value;
 
 // ============================================================================
-// Insert - Add or update key-value pair
+// map_insert - add or update a key-value pair
 // ============================================================================
 
-template <typename Map, typename Key, auto Value>
-struct Insert;
+template<typename Entry, typename Map>
+struct map_prepend;
 
-template <typename Key, auto Value>
-struct Insert<TypeMap<>, Key, Value> {
-    using type = TypeMap<Pair<Key, Value>>;
+template<typename Entry, typename... Entries>
+struct map_prepend<Entry, type_map<Entries...>> {
+    using type = type_map<Entry, Entries...>;
 };
 
-// Key already exists - update value
-template <typename Key, auto OldValue, auto NewValue, typename... Rest>
-struct Insert<TypeMap<Pair<Key, OldValue>, Rest...>, Key, NewValue> {
-    using type = TypeMap<Pair<Key, NewValue>, Rest...>;
+template<typename Entry, typename Map>
+using map_prepend_t = typename map_prepend<Entry, Map>::type;
+
+template<typename Map, typename Key, auto Value>
+struct map_insert;
+
+template<typename Key, auto Value>
+struct map_insert<type_map<>, Key, Value> {
+    using type = type_map<map_entry<Key, Value>>;
 };
 
-// Key doesn't match - recurse
-template <typename Key, auto Value, typename OtherKey, auto OtherValue, typename... Rest>
-struct Insert<TypeMap<Pair<OtherKey, OtherValue>, Rest...>, Key, Value> {
-    using head_pair = Pair<OtherKey, OtherValue>;
+template<typename Key, auto OldValue, typename... Rest, auto NewValue>
+struct map_insert<type_map<map_entry<Key, OldValue>, Rest...>, Key, NewValue> {
+    using type = type_map<map_entry<Key, NewValue>, Rest...>;
+};
+
+template<typename OtherKey, auto OtherValue, typename... Rest, typename Key, auto Value>
+struct map_insert<type_map<map_entry<OtherKey, OtherValue>, Rest...>, Key, Value> {
+    using type = map_prepend_t<
+        map_entry<OtherKey, OtherValue>,
+        typename map_insert<type_map<Rest...>, Key, Value>::type>;
+};
+
+template<typename Map, typename Key, auto Value>
+using map_insert_t = typename map_insert<Map, Key, Value>::type;
+
+// ============================================================================
+// map_increment / map_decrement - update numeric values
+// ============================================================================
+
+template<typename Map, typename Key, auto Delta = 1>
+struct map_increment {
 private:
-    template <typename... Ps>
-    struct Prepend;
+    static constexpr auto current = map_get_v<Map, Key, 0>;
 
-    template <typename... Ps>
-    struct Prepend<TypeMap<Ps...>> {
-        using type = TypeMap<head_pair, Ps...>;
-    };
 public:
-    using type = typename Prepend<typename Insert<TypeMap<Rest...>, Key, Value>::type>::type;
+    using type = map_insert_t<Map, Key, current + Delta>;
 };
 
-template <typename Map, typename Key, auto Value>
-using Insert_t = typename Insert<Map, Key, Value>::type;
+template<typename Map, typename Key, auto Delta = 1>
+using map_increment_t = typename map_increment<Map, Key, Delta>::type;
 
-// ============================================================================
-// Increment - Increment value for key (initializes to 1 if not present)
-// ============================================================================
-
-template <typename Map, typename Key, auto Delta = 1>
-struct Increment {
+template<typename Map, typename Key, auto Delta = 1>
+struct map_decrement {
 private:
-    static constexpr auto current = Get_v<Map, Key, 0>;
-    static constexpr auto new_value = current + Delta;
+    static constexpr auto current = map_get_v<Map, Key, 0>;
+
 public:
-    using type = Insert_t<Map, Key, new_value>;
+    using type = map_insert_t<Map, Key, current - Delta>;
 };
 
-template <typename Map, typename Key, auto Delta = 1>
-using Increment_t = typename Increment<Map, Key, Delta>::type;
+template<typename Map, typename Key, auto Delta = 1>
+using map_decrement_t = typename map_decrement<Map, Key, Delta>::type;
 
-// ============================================================================
-// Decrement - Decrement value for key
-// ============================================================================
-
-template <typename Map, typename Key, auto Delta = 1>
-struct Decrement {
-private:
-    static constexpr auto current = Get_v<Map, Key, 0>;
-    static constexpr auto new_value = current - Delta;
-public:
-    using type = Insert_t<Map, Key, new_value>;
-};
-
-template <typename Map, typename Key, auto Delta = 1>
-using Decrement_t = typename Decrement<Map, Key, Delta>::type;
-
-} // namespace meta
 } // namespace c4
