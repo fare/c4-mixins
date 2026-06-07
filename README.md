@@ -6,14 +6,19 @@ Header-only C++20 mixins with a C4-linearized `Super` chain.
 Each mixin method can call `Super::method()`, and
 C4 linearization computes which method comes next.
 
-This gives independently written mixins a cooperative protocol to define method across diamonds:
+This gives independently written mixins a cooperative protocol across diamonds:
 every ancestor's behavior takes effect once and only once, in a consistent order.
 Inconsistent inheritance graphs are rejected at compile time.
 
-## Quick Example: A Diamond
+## Quick example: a diamond
+
+`Timestamped` and `Audited` both extend `Object`; `Document` extends both.
+C4 linearization composes them into one `Super` chain,
+so each `save()` method is executed once and only once.
 
 ```cpp
 #include <c4/mixins.hpp>
+
 #include <iostream>
 
 template<class Self, class Super>
@@ -42,7 +47,7 @@ struct Document : Super {
   void save() { std::cout << "Document::save\n"; Super::save(); }
 };
 
-using MyDocument = c4::compose<Document>;
+using MyDocument = c4::instantiate<Document>;
 
 int main() {
   MyDocument doc;
@@ -59,14 +64,11 @@ Audited::save
 Object::save
 ```
 
-The computed class precedence list (driving the chain of methods) is:
+The computed class precedence list, which driving the `Super` chain, is:
 
 ```text
 Document → Timestamped → Audited → Object
 ```
-
-Although both `Timestamped` and `Audited` extend `Object`, `Object::save()` appears once and only once.
-Each mixin cooperates by calling `Super::save()`.
 
 ## Why C4?
 
@@ -107,47 +109,27 @@ This project implements **Optimal Inheritance** using C++ template metaprogrammi
    using C++ templates, we ensure that all inheritance computations happen at compile-time;
    there is zero runtime overhead to using this library.
 
-Sounds confusing? Read my book in the bibliography.
+Sounds confusing? Read my book, as listed in the bibliography.
 
-## Project Status
+## Project status
 
 Experimental, pre-1.0.
 The same algorithm is used in production in other languages.
 The implementation and the examples compile and pass tests.
 However, the public C++ API may still change.
 
-## Authors
+## Building and testing
 
-I (François-René Rideau) designed and implemented this code as part of Gerbil Scheme.
-Then I used Claude Opus 4.5 from Anthropic to translate it to C++ templates.
-Claude one-shotted a working but sloppy solution from specification. Finally,
-I rewrote and simplified it into half as much code, with a nicer and more powerful API,
-again with some help from Claude. ChatGPT helped me make clean it up further.
+This is a header-only library, so you don't need to build anything.
 
-I also invented the word "flavorful", after Flavors (1979), the first Object System
-that did multiple inheritance the right way, which paved the way to CLOS
-(the Commont Lisp Object System), and the basic design of which (if not the advanced features)
-was later copied by Ruby, Python, Perl, Scala, and more. For complete explanations,
-see my book "Lambda the Ultimate Object" https://fare.tunes.org/files/cs/poof/ltuo.html
-
-## Building and Testing
+To run the tests, use the following command, that ought not to output any error message,
+and include an "ok" line at the end:
 
 ```bash
-mkdir -p build
-g++ -std=c++20 -Iinclude tests/test_spec_pattern.cpp   -o build/test_spec_pattern   && build/test_spec_pattern &&
-g++ -std=c++20 -Iinclude tests/test_c3_examples.cpp    -o build/test_c3_examples    && build/test_c3_examples &&
-g++ -std=c++20 -Iinclude tests/test_c4_suffix.cpp      -o build/test_c4_suffix      && build/test_c4_suffix &&
-g++ -std=c++20 -Iinclude tests/test_error_detection.cpp -o build/test_error_detection && build/test_error_detection
+./run-tests.sh
 ```
 
 ## Examples
-
-All runnable examples live in `examples/` and build with:
-
-```bash
-mkdir -p build
-g++ -std=c++20 -Iinclude examples/<name>.cpp -o build/<name> && build/<name>
-```
 
 The examples in `examples/` are numbered in suggested reading order:
 
@@ -158,14 +140,101 @@ The examples in `examples/` are numbered in suggested reading order:
 - `05_interface.cpp`: using C4 mixins while programming against ordinary C++ interfaces.
 - `06_counting.cpp`: a legacy counting example in the mixin-literature style.
 
-## Suffix Classes
+Build all examples into `build/examples/` with:
+```bash
+./run-tests.sh
+```
 
-“Suffix property”: suffix specs, marked `static constexpr bool c4_suffix = true;`
-are guaranteed to have their class precedence list as the suffix of
-any descendent’s class precedence list, enabling fixed-offset field access.
+Or build one manually with, e.g.:
+
+```bash
+c++ -std=c++20 -Iinclude examples/01_diamond.cpp -o build/examples/01_diamond
+```
+
+## Basic API
+
+A mixin is a class template with two parameters:
+
+```cpp
+template<class Self, class Super>
+struct MyMixin : Super {
+  // ...
+};
+```
+
+`Self` is the final generated class. `Super` is the next class in the
+C4-linearized chain.
+
+A mixin declares its direct parents with `c4_parents`:
+
+```cpp
+using c4_parents = c4::parents<A, B, C>;
+```
+
+If `c4_parents` is omitted, the mixin has no parents.
+
+Instantiate a concrete class with:
+
+```cpp
+using MyClass = c4::instantiate<MyMixin>;
+```
+
+or, with an explicit base class:
+
+```cpp
+using MyClass = c4::instantiate<MyMixin, MyBase>;
+```
+
+The explicit base defaults to `c4::mixin`, which also provides the default C4 declarations.
+
+## Advanced parent orders
+
+Most mixins declare a single local parent (total) order:
+
+```cpp
+using c4_parents = c4::parents<A, B, C>;
+```
+
+For advanced cases, a mixin can declare several local parent (total) orders:
+
+```cpp
+using c4_parents = c4::parent_orders<
+  c4::order<A, B>,
+  c4::order<C, D>
+>;
+```
+
+Each `c4::order<...>` is a local precedence list. `c4::parent_orders<...>`
+combines several such lists into one parent declaration.
+Arbitrary partial orders can be specified this way as the closure of total orders.
+
+See `examples/04_parent_orders.cpp`.
+
+## Suffix classes
+
+A mixin may declare itself a suffix class:
+
+```cpp
+static constexpr bool c4_suffix = true;
+```
+
+Suffix classes are guaranteed to form a single-inheritance tail in descendant
+linearizations. In the generated C++ type, each suffix class has a single most-specific suffix
+superclass. This preserves the layout and dispatch opportunities associated
+with ordinary single inheritance inside that tail.
+
+Suffix classes still receive the final CRTP `Self` type, like other mixins.
+When a suffix class does not actually depend on `Self`, different instantiations
+may have identical generated code that optimizing compilers and linkers can
+sometimes fold. This is an optimization opportunity, not a semantic guarantee:
+C++ type identity still distinguishes different template instantiations.
+
+See `examples/03_suffix.cpp`.
+
+For the theory-inclined, suffix specs have the “suffix property”:
+their class precedence list is the suffix of any descendent’s class precedence list.
 Suffix specs in a given class’s ancestry are always in a total order,
-though some infix (i.e. not-suffix) classes in between them might not.
-
+but some infix (i.e. not-suffix) classes in between them might not.
 Suffix specs correspond to the notion of “class” in Scala or Ruby, that are in a mutual
 single-inheritance structure, as contrasted with infix (non-suffix) specs, that correspond
 to the notion of “trait” in Scala, or “module” in Ruby, that are in mutual multiple-inheritance
@@ -173,54 +242,23 @@ structure. See also “struct” in Lisp (that have single inheritance) vs “cl
 have multiple inheritance) and “mixin” (which is an abstract class designed for use in a multiple
 inheritance context, except the word “mixin” pre-dates the words “abstract class”).
 
-In the generated C++ type, this gives suffix classes a linear tail: each suffix class
-has a single suffix superclass. This preserves the layout and dispatch opportunities
-associated with ordinary single inheritance inside that tail. When suffix classes do not
-depend on the CRTP `Self` parameter, compilers and linkers may also be able to fold identical
-generated code, but C++ type identity does not require this.
-
-See examples in [`examples/suffix.cpp`](examples/suffix.cpp).
-
-## Multiple Parent Lists
-
-Instead of parents being in a total order with `using c4_parents = c4::parents<A, B, C>;`
-you can specify parents in a partial order, with the following,
-where each of the `order<...>` specifies a total order:
-```cpp
-using c4_parents = c4::parent_orders<c4::order<A, B>, c4::order<C, D>>;`
-```
-
-See examples in [`examples/multiple_parent_lists.cpp`](examples/multiple_parent_lists.cpp).
-
 ## Architecture
 
-```
+```text
 include/c4/
-├── mixins.hpp        # Main header (include this)
+├── mixins.hpp        # Main header <--- #INCLUDE THIS
 ├── type_list.hpp     # Compile-time list operations
 ├── type_map.hpp      # Compile-time associative map
 ├── cycle_check.hpp   # Diagnostic-only cycle checker
 └── linearize.hpp     # C4 linearization algorithm
 ```
 
-### Type-Level Infrastructure
+`mixins.hpp` is the header users include, as `#include <c4/mixins.hpp>`.
 
-**TypeList** - Compile-time list with operations:
-- Basic: Head, Tail, Cons, Append, Concat
-- Transform: Map, Reverse
-- Query: Contains
-- Special: RemoveNulls, AppendReverseUntil (for C4), FoldLeft
+The rest is helpers used by `mixins.hpp` itself.
+Some readers might be interested in the type-level template programming therein.
+File `linearize.hpp` itself is a generic form of the C4 linearization algorithm.
 
-**TypeMap** - Compile-time associative map:
-- Get, Insert, Increment, Decrement
-- Used for O(dn) ancestor counting in C3/C4
-
-**SpecHelper** - Internal wrapper for a spec in the inheritance DAG:
-```cpp
-template <template<typename> class Spec, typename ParentsTypeList,
-          bool IsSuffix, size_t UniqueId>
-struct SpecHelper { /* ... */ };
-```
 
 ## The C4 Algorithm
 
@@ -240,6 +278,20 @@ C4 extends C3 with support for **suffix specifications**. It enforces six constr
   (can you even have template-level hash-tables or sets in C++?).
   Contrast with the original C3 being O(d²n²), while most simple class precedence algorithms
   are O(dn) but fail to provide the good properties of C3 and C4.
+
+## Authors
+
+I (François-René Rideau) designed and implemented this code as part of Gerbil Scheme.
+I then used Claude Opus 4.5 from Anthropic to translate it to C++ templates.
+Claude one-shotted a working but sloppy solution from specification. I subsequently
+rewrote and simplified it into half as much code, with a nicer and more powerful API,
+again with some help from Claude. Finally, ChatGPT helped me clean it up further.
+
+I also invented the word "flavorful", after Flavors (1979), the first Object System
+that did multiple inheritance the right way, which paved the way to CLOS
+(the Commont Lisp Object System), and the basic design of which (if not the advanced features)
+was later copied by Ruby, Python, Perl, Scala, and more. For complete explanations,
+see my book "Lambda the Ultimate Object" https://fare.tunes.org/files/cs/poof/ltuo.html
 
 ## Bibliography
 
