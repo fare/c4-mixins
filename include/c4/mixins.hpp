@@ -202,7 +202,7 @@ inline constexpr bool is_in_cpl_v = is_in_precedence_list_v<Derived, Target>;
 // ============================================================================
 
 #define C4_MIXINS_VERSION_MAJOR 0
-#define C4_MIXINS_VERSION_MINOR 3
-#define C4_MIXINS_VERSION_PATCH 0
-#define C4_MIXINS_VERSION "0.3.0"
+#define C4_MIXINS_VERSION_MINOR 1
+#define C4_MIXINS_VERSION_PATCH 1
+#define C4_MIXINS_VERSION "0.1.1"
 
